@@ -497,6 +497,7 @@
    ============================================================ */
 .chronos-heatmap-area {
   flex: 1;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 20px 24px;
 }
@@ -506,37 +507,40 @@
 }
 
 .chronos-heatmap-year-section {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .chronos-heatmap-year-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-normal);
-  margin: 0 0 10px 36px;
+  color: var(--text-muted);
+  margin: 0 0 8px 36px;
+  letter-spacing: 0.04em;
 }
 
 .chronos-heatmap-grid-wrap {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
 }
 
+/* Day labels: each label cell must match cell height (13px) + gap (2px) = 15px */
 .chronos-heatmap-day-labels {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-top: 18px; /* aligns with month label row */
   flex-shrink: 0;
-  width: 30px;
+  width: 32px;
+  /* month-row height (14px) + gap between month row and weeks (2px) = 16px */
+  padding-top: 16px;
 }
 
 .chronos-heatmap-day-label {
-  height: 13px;
+  height: 15px; /* matches CELL(13) + GAP(2) so labels stay in sync with rows */
   font-size: 9px;
   color: var(--text-muted);
   line-height: 13px;
   text-align: right;
+  padding-right: 2px;
 }
 
 .chronos-heatmap-weeks-wrap {
@@ -548,8 +552,8 @@
 .chronos-heatmap-month-row {
   display: flex;
   gap: 2px;
-  height: 16px;
-  overflow: hidden;
+  height: 14px;
+  align-items: flex-end;
 }
 
 .chronos-heatmap-month-label {
@@ -557,6 +561,7 @@
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .chronos-heatmap-weeks {
@@ -568,10 +573,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .chronos-heatmap-cell {
-  border-radius: 2px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 
@@ -581,22 +587,24 @@
 
 .chronos-heatmap-cell-zero {
   background: var(--background-modifier-border);
+  opacity: 0.6;
 }
 
 .chronos-heatmap-cell-active {
   background: var(--interactive-accent);
   cursor: pointer;
-  transition: opacity 0.1s, transform 0.1s;
+  transition: transform 0.08s;
 }
 
 .chronos-heatmap-cell-active:hover {
-  transform: scale(1.3);
+  transform: scale(1.4);
   z-index: 5;
+  position: relative;
 }
 
-/* Intensity levels via data attribute */
-.chronos-heatmap-cell-active[data-intensity="1"] { opacity: 0.25; }
-.chronos-heatmap-cell-active[data-intensity="2"] { opacity: 0.50; }
+/* Intensity levels */
+.chronos-heatmap-cell-active[data-intensity="1"] { opacity: 0.20; }
+.chronos-heatmap-cell-active[data-intensity="2"] { opacity: 0.45; }
 .chronos-heatmap-cell-active[data-intensity="3"] { opacity: 0.75; }
 .chronos-heatmap-cell-active[data-intensity="4"] { opacity: 1.00; }
 
@@ -618,18 +626,21 @@
 .chronos-heatmap-legend {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 20px;
+  gap: 3px;
+  margin-bottom: 18px;
   margin-left: 36px;
 }
 
 .chronos-heatmap-legend-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
+  margin: 0 2px;
 }
 
 .chronos-heatmap-legend-cell {
-  border-radius: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 

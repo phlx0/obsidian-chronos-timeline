@@ -8,8 +8,6 @@
 
 Stop browsing your notes as a flat list. Chronos Timeline plots every note on a horizontal time axis based on its date, giving you a spatial, temporal view of your knowledge base — how it grew, when ideas clustered, and what happened when.
 
-![Chronos Timeline — timeline view](docs/screenshots/timeline-month.png)
-
 ---
 
 ## Features
@@ -26,8 +24,6 @@ An interactive horizontal timeline you can scroll, zoom, and filter.
 ### Heatmap View
 A GitHub contribution graph for your vault — switch with one click in the toolbar.
 
-![Chronos Timeline — heatmap view](docs/screenshots/heatmap.png)
-
 - One cell per day, colored by note density
 - Covers all years present in your vault
 - Click any day to filter the timeline to that date
@@ -35,8 +31,6 @@ A GitHub contribution graph for your vault — switch with one click in the tool
 
 ### Swimlanes
 Group notes into horizontal bands by top-level folder — see your Journal, Work, and Research notes on separate tracks simultaneously.
-
-![Chronos Timeline — swimlanes](docs/screenshots/timeline-swimlanes.png)
 
 ### Drag to Reschedule
 Drag any note card to a new date on the timeline. The frontmatter date field updates automatically.
