@@ -1,20 +1,29 @@
 import { App, TFile } from "obsidian";
-import { ChronosSettings, TimelineNote, LaneOccupancy, ZOOM_PX_PER_DAY, ZoomLevel } from "../types";
+import {
+  ChronosSettings,
+  TimelineNote,
+  LaneOccupancy,
+  ZOOM_PX_PER_DAY,
+  ZoomLevel,
+  CARD_HEIGHT_PX,
+  LANE_HEIGHT_PX,
+  SWIMLANE_HEADER_HEIGHT,
+  SwimlaneGroup,
+} from "../types";
 import { extractDate } from "./dateParser";
 
-/** Palette of default colors for folders / tags without explicit colors */
 const DEFAULT_PALETTE = [
   "#4f8ef7", "#e05c5c", "#48b883", "#e8a838",
   "#8e6fdb", "#3ec9c9", "#e87b3e", "#8ab83e",
 ];
 
-function getDefaultColor(key: string, palette = DEFAULT_PALETTE): string {
+function getDefaultColor(key: string): string {
   let hash = 0;
   for (let i = 0; i < key.length; i++) {
     hash = ((hash << 5) - hash) + key.charCodeAt(i);
     hash |= 0;
   }
-  return palette[Math.abs(hash) % palette.length];
+  return DEFAULT_PALETTE[Math.abs(hash) % DEFAULT_PALETTE.length];
 }
 
 function resolveColor(note: TimelineNote, settings: ChronosSettings): string {
@@ -28,11 +37,11 @@ function resolveColor(note: TimelineNote, settings: ChronosSettings): string {
   return "#4f8ef7";
 }
 
-/**
- * Loads all eligible markdown files from the vault and returns
- * TimelineNote objects, sorted by date ascending.
- * Excludes files in `settings.excludeFolders`.
- */
+function getTopLevelFolder(folder: string): string {
+  if (!folder) return "(root)";
+  return folder.split("/")[0] || "(root)";
+}
+
 export function loadNotes(app: App, settings: ChronosSettings): TimelineNote[] {
   const files = app.vault.getMarkdownFiles();
   const notes: TimelineNote[] = [];
@@ -63,8 +72,11 @@ export function loadNotes(app: App, settings: ChronosSettings): TimelineNote[] {
       dateFieldUsed: result.fieldUsed,
       tags: normalizedTags,
       folder,
+      topLevelFolder: getTopLevelFolder(folder),
       color: "#4f8ef7",
       laneIndex: 0,
+      // Use file size in bytes / 6 as a fast word-count proxy
+      wordCount: Math.round(file.stat.size / 6),
     };
     note.color = resolveColor(note, settings);
     notes.push(note);
@@ -85,9 +97,8 @@ function isExcluded(file: TFile, settings: ChronosSettings): boolean {
 }
 
 /**
- * Assigns a laneIndex to each note using a greedy sweep-line algorithm.
- * Notes in the same horizontal time-slot get different lanes (rows).
- * Modifies the notes array in place.
+ * Assigns laneIndex to each note using a greedy sweep-line algorithm.
+ * Operates on a flat array — call once per swimlane group when using swimlanes.
  */
 export function assignLanes(
   notes: TimelineNote[],
@@ -97,17 +108,13 @@ export function assignLanes(
   maxLanes: number
 ): void {
   const pxPerDay = ZOOM_PX_PER_DAY[zoom];
-  const cardPaddingPx = 8;
-  const effectiveCardWidth = cardWidthPx + cardPaddingPx;
-
-  // Each lane tracks the rightmost X position that is already occupied
+  const effectiveCardWidth = cardWidthPx + 8;
   const laneEndX: LaneOccupancy[] = [];
 
   for (const note of notes) {
     const dayOffset = (note.date.getTime() - viewStartDate.getTime()) / 86_400_000;
     const noteX = dayOffset * pxPerDay;
 
-    // Find the first lane where this card fits
     let assignedLane = -1;
     for (let i = 0; i < laneEndX.length; i++) {
       if (laneEndX[i].endX <= noteX) {
@@ -122,11 +129,40 @@ export function assignLanes(
       laneEndX.push({ endX: noteX + effectiveCardWidth });
     }
 
-    // If all lanes are full, overflow into the last lane
-    if (assignedLane === -1) {
-      assignedLane = maxLanes - 1;
-    }
+    if (assignedLane === -1) assignedLane = maxLanes - 1;
 
     note.laneIndex = assignedLane;
   }
+}
+
+/**
+ * Groups notes into swimlane definitions, assigns per-group lanes,
+ * and computes cumulative Y offsets for rendering.
+ */
+export function buildSwimlaneGroups(
+  notes: TimelineNote[],
+  viewStartDate: Date,
+  zoom: ZoomLevel,
+  cardWidthPx: number,
+  maxLanes: number
+): SwimlaneGroup[] {
+  const groupMap = new Map<string, TimelineNote[]>();
+  for (const note of notes) {
+    const key = note.topLevelFolder;
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(note);
+  }
+
+  const groups: SwimlaneGroup[] = [];
+  let yOffset = 0;
+
+  for (const [label, groupNotes] of groupMap) {
+    assignLanes(groupNotes, viewStartDate, zoom, cardWidthPx, maxLanes);
+    const maxLane = Math.max(...groupNotes.map((n) => n.laneIndex), 0);
+    const height = (maxLane + 1) * LANE_HEIGHT_PX + SWIMLANE_HEADER_HEIGHT + 16;
+    groups.push({ label, notes: groupNotes, yOffset, height });
+    yOffset += height;
+  }
+
+  return groups;
 }

@@ -1,6 +1,6 @@
-import { App, PluginSettingTab, Setting, Notice } from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
 import type ChronosPlugin from "./main";
-import { ChronosSettings, ZoomLevel } from "./types";
+import { ZoomLevel } from "./types";
 
 export class ChronosSettingTab extends PluginSettingTab {
   private plugin: ChronosPlugin;
@@ -13,28 +13,21 @@ export class ChronosSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-
-    containerEl.createEl("h2", { text: "Chronos Timeline Settings" });
+    containerEl.createEl("h2", { text: "Chronos Timeline" });
 
     // -----------------------------------------------------------------------
-    // Date Fields
+    // Date detection
     // -----------------------------------------------------------------------
     containerEl.createEl("h3", { text: "Date Detection" });
 
     new Setting(containerEl)
       .setName("Frontmatter date fields")
-      .setDesc(
-        "Comma-separated list of frontmatter keys to use as the note date, in priority order. " +
-        "Example: date, created, published, meeting-date"
-      )
+      .setDesc("Comma-separated list of frontmatter keys to use as the note date, in priority order.")
       .addTextArea((area) => {
         area
           .setValue(this.plugin.settings.dateFields.join(", "))
           .onChange(async (val) => {
-            this.plugin.settings.dateFields = val
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
+            this.plugin.settings.dateFields = val.split(",").map((s) => s.trim()).filter(Boolean);
             await this.plugin.saveSettings();
           });
         area.inputEl.rows = 3;
@@ -44,13 +37,11 @@ export class ChronosSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Fall back to file creation date")
       .setDesc("If no frontmatter date is found, use the file's creation date.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.useFallbackCtime)
-          .onChange(async (val) => {
-            this.plugin.settings.useFallbackCtime = val;
-            await this.plugin.saveSettings();
-          })
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.useFallbackCtime).onChange(async (v) => {
+          this.plugin.settings.useFallbackCtime = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     // -----------------------------------------------------------------------
@@ -60,7 +51,6 @@ export class ChronosSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Default zoom level")
-      .setDesc("The zoom level shown when the timeline is first opened.")
       .addDropdown((dd) =>
         dd
           .addOptions({ year: "Year", month: "Month", week: "Week", day: "Day" })
@@ -73,42 +63,83 @@ export class ChronosSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Card width (px)")
-      .setDesc("Width of each note card in pixels. Default: 180.")
-      .addSlider((slider) =>
-        slider
+      .addSlider((s) =>
+        s
           .setLimits(120, 320, 10)
           .setValue(this.plugin.settings.cardWidth)
           .setDynamicTooltip()
-          .onChange(async (val) => {
-            this.plugin.settings.cardWidth = val;
+          .onChange(async (v) => {
+            this.plugin.settings.cardWidth = v;
             await this.plugin.saveSettings();
           })
       );
 
     new Setting(containerEl)
       .setName("Maximum lane count")
-      .setDesc("Maximum number of stacked rows for notes that share the same time slot. Default: 8.")
-      .addSlider((slider) =>
-        slider
+      .addSlider((s) =>
+        s
           .setLimits(2, 20, 1)
           .setValue(this.plugin.settings.maxLanes)
           .setDynamicTooltip()
-          .onChange(async (val) => {
-            this.plugin.settings.maxLanes = val;
+          .onChange(async (v) => {
+            this.plugin.settings.maxLanes = v;
             await this.plugin.saveSettings();
           })
       );
 
     new Setting(containerEl)
       .setName("Show hover preview")
-      .setDesc("Show Obsidian's note preview when hovering over a card.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.showPreviewTooltip)
-          .onChange(async (val) => {
-            this.plugin.settings.showPreviewTooltip = val;
-            await this.plugin.saveSettings();
-          })
+      .setDesc("Show Obsidian's native note preview on card hover.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.showPreviewTooltip).onChange(async (v) => {
+          this.plugin.settings.showPreviewTooltip = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    // -----------------------------------------------------------------------
+    // Features
+    // -----------------------------------------------------------------------
+    containerEl.createEl("h3", { text: "Features" });
+
+    new Setting(containerEl)
+      .setName("Group by folder (swimlanes)")
+      .setDesc("Separate notes into horizontal bands per top-level folder.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enableSwimlanes).onChange(async (v) => {
+          this.plugin.settings.enableSwimlanes = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Minimap")
+      .setDesc("Show a compact overview bar below the timeline.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enableMinimap).onChange(async (v) => {
+          this.plugin.settings.enableMinimap = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Drag to reschedule")
+      .setDesc("Drag a note card to a new date to update its frontmatter date.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enableDragReschedule).onChange(async (v) => {
+          this.plugin.settings.enableDragReschedule = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Virtualization")
+      .setDesc("Only render cards in the visible viewport (recommended for vaults with 150+ dated notes).")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enableVirtualization).onChange(async (v) => {
+          this.plugin.settings.enableVirtualization = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     // -----------------------------------------------------------------------
@@ -118,10 +149,9 @@ export class ChronosSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Color cards by")
-      .setDesc("Choose what determines a card's color.")
       .addDropdown((dd) =>
         dd
-          .addOptions({ folder: "Folder", tag: "First tag", none: "None (default blue)" })
+          .addOptions({ folder: "Folder", tag: "First tag", none: "None" })
           .setValue(this.plugin.settings.colorBy)
           .onChange(async (val) => {
             this.plugin.settings.colorBy = val as "folder" | "tag" | "none";
@@ -129,19 +159,13 @@ export class ChronosSettingTab extends PluginSettingTab {
           })
       );
 
-    // Tag color mappings
     containerEl.createEl("h4", { text: "Tag colors" });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: 'Map a tag name (without #) to a hex color. One per line, format: tagname=#hex',
-    });
-
     new Setting(containerEl)
       .setName("Tag → color map")
+      .setDesc("One per line, format: tagname=#hexcolor")
       .addTextArea((area) => {
         const entries = Object.entries(this.plugin.settings.tagColors)
-          .map(([k, v]) => `${k}=${v}`)
-          .join("\n");
+          .map(([k, v]) => `${k}=${v}`).join("\n");
         area.setValue(entries).onChange(async (val) => {
           this.plugin.settings.tagColors = parseColorMap(val);
           await this.plugin.saveSettings();
@@ -154,17 +178,17 @@ export class ChronosSettingTab extends PluginSettingTab {
     containerEl.createEl("h4", { text: "Folder colors" });
     new Setting(containerEl)
       .setName("Folder → color map")
+      .setDesc("One per line, format: foldername=#hexcolor")
       .addTextArea((area) => {
         const entries = Object.entries(this.plugin.settings.folderColors)
-          .map(([k, v]) => `${k}=${v}`)
-          .join("\n");
+          .map(([k, v]) => `${k}=${v}`).join("\n");
         area.setValue(entries).onChange(async (val) => {
           this.plugin.settings.folderColors = parseColorMap(val);
           await this.plugin.saveSettings();
         });
         area.inputEl.rows = 5;
         area.inputEl.cols = 40;
-        area.inputEl.placeholder = "Journal=#4f8ef7\nWork/Projects=#e8a838";
+        area.inputEl.placeholder = "Journal=#4f8ef7\nWork=#e8a838";
       });
 
     // -----------------------------------------------------------------------
@@ -174,20 +198,17 @@ export class ChronosSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Excluded folders")
-      .setDesc("Folder paths to exclude from the timeline. One per line.")
+      .setDesc("One folder path per line.")
       .addTextArea((area) => {
         area
           .setValue(this.plugin.settings.excludeFolders.join("\n"))
           .onChange(async (val) => {
-            this.plugin.settings.excludeFolders = val
-              .split("\n")
-              .map((s) => s.trim())
-              .filter(Boolean);
+            this.plugin.settings.excludeFolders = val.split("\n").map((s) => s.trim()).filter(Boolean);
             await this.plugin.saveSettings();
           });
         area.inputEl.rows = 4;
         area.inputEl.cols = 40;
-        area.inputEl.placeholder = "Templates\nArchive\n.trash";
+        area.inputEl.placeholder = "Templates\nArchive";
       });
   }
 }
@@ -201,9 +222,7 @@ function parseColorMap(raw: string): Record<string, string> {
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
     const val = trimmed.slice(eqIdx + 1).trim();
-    if (key && /^#[0-9a-fA-F]{3,8}$/.test(val)) {
-      result[key] = val;
-    }
+    if (key && /^#[0-9a-fA-F]{3,8}$/.test(val)) result[key] = val;
   }
   return result;
 }

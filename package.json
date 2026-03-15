@@ -1,6 +1,6 @@
 {
   "name": "obsidian-chronos-timeline",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Visualize your Obsidian notes on an interactive timeline",
   "main": "main.js",
   "scripts": {

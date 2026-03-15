@@ -1,4 +1,5 @@
 export type ZoomLevel = "year" | "month" | "week" | "day";
+export type ViewMode = "timeline" | "heatmap";
 
 export interface TimelineNote {
   path: string;
@@ -7,8 +8,17 @@ export interface TimelineNote {
   dateFieldUsed: string;
   tags: string[];
   folder: string;
+  topLevelFolder: string;
   color: string;
   laneIndex: number;
+  wordCount: number;
+}
+
+export interface SwimlaneGroup {
+  label: string;
+  notes: TimelineNote[];
+  yOffset: number;
+  height: number;
 }
 
 export interface LaneOccupancy {
@@ -16,26 +26,20 @@ export interface LaneOccupancy {
 }
 
 export interface ChronosSettings {
-  /** Frontmatter fields to scan for dates, in priority order */
   dateFields: string[];
-  /** Fall back to file's ctime if no frontmatter date found */
   useFallbackCtime: boolean;
-  /** Default zoom level when opening the view */
   defaultZoom: ZoomLevel;
-  /** Show a content preview tooltip on hover */
   showPreviewTooltip: boolean;
-  /** Folders to exclude (exact path prefixes) */
   excludeFolders: string[];
-  /** Color strategy for note cards */
   colorBy: "folder" | "tag" | "none";
-  /** Map of tag → hex color */
   tagColors: Record<string, string>;
-  /** Map of folder path → hex color */
   folderColors: Record<string, string>;
-  /** Maximum number of lanes (rows) in the timeline */
   maxLanes: number;
-  /** Card width in pixels */
   cardWidth: number;
+  enableSwimlanes: boolean;
+  enableMinimap: boolean;
+  enableVirtualization: boolean;
+  enableDragReschedule: boolean;
 }
 
 export const DEFAULT_SETTINGS: ChronosSettings = {
@@ -49,12 +53,22 @@ export const DEFAULT_SETTINGS: ChronosSettings = {
   folderColors: {},
   maxLanes: 8,
   cardWidth: 180,
+  enableSwimlanes: false,
+  enableMinimap: true,
+  enableVirtualization: true,
+  enableDragReschedule: true,
 };
 
-/** Pixels represented by one day at each zoom level */
 export const ZOOM_PX_PER_DAY: Record<ZoomLevel, number> = {
   year: 4,
   month: 20,
   week: 80,
   day: 220,
 };
+
+export const SWIMLANE_HEADER_HEIGHT = 28;
+export const CARD_HEIGHT_PX = 72;
+export const LANE_HEIGHT_PX = 88;
+export const DATE_PAD_DAYS = 30;
+export const VIRT_BUFFER_PX = 600;
+export const MAX_WORD_COUNT_REF = 2000;
