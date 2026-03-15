@@ -11,6 +11,7 @@ import {
 } from "../types";
 import { extractDate } from "./dateParser";
 import { generateRecurringDates, isValidRecurrence } from "./recurringDates";
+import { resolveFilesFromDataview } from "./dataviewIntegration";
 
 const DEFAULT_PALETTE = [
   "#4f8ef7", "#e05c5c", "#48b883", "#e8a838",
@@ -50,7 +51,7 @@ export function loadNotes(app: App, settings: ChronosSettings, dvApi?: unknown):
   // Resolve file list — use Dataview if a query is configured
   let files: TFile[];
   if (settings.dataviewQuery && dvApi) {
-    files = resolveFilesFromDv(app, dvApi, settings.dataviewQuery);
+    files = resolveFilesFromDataview(app, dvApi, settings.dataviewQuery);
   } else {
     files = app.vault.getMarkdownFiles();
   }
@@ -131,9 +132,9 @@ export function expandWithRecurring(
   const result: TimelineNote[] = [...notes];
 
   for (const note of notes) {
-    const cache = app.metadataCache.getFileCache(
-      app.vault.getAbstractFileByPath(note.path) as TFile
-    );
+    const fileRef = app.vault.getAbstractFileByPath(note.path);
+    if (!(fileRef instanceof TFile)) continue;
+    const cache = app.metadataCache.getFileCache(fileRef);
     const recurrenceVal = cache?.frontmatter?.[settings.recurringField];
     if (!isValidRecurrence(recurrenceVal)) continue;
 
@@ -153,21 +154,6 @@ export function expandWithRecurring(
   return result;
 }
 
-function resolveFilesFromDv(app: App, dvApi: unknown, query: string): TFile[] {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pages = (dvApi as any).pages(query);
-    const files: TFile[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const page of pages.values) {
-      const f = app.vault.getAbstractFileByPath(page.file.path);
-      if (f instanceof TFile) files.push(f);
-    }
-    return files.length > 0 ? files : app.vault.getMarkdownFiles();
-  } catch {
-    return app.vault.getMarkdownFiles();
-  }
-}
 
 function isExcluded(file: TFile, settings: ChronosSettings): boolean {
   for (const excluded of settings.excludeFolders) {

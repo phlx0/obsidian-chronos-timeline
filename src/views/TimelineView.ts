@@ -1,4 +1,4 @@
-import { App, ItemView, WorkspaceLeaf, TFile, Notice, debounce } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, Notice, debounce } from "obsidian";
 import {
   ChronosSettings,
   TimelineNote,
@@ -43,6 +43,7 @@ export class TimelineView extends ItemView {
   private viewEndDate: Date = new Date();
   private totalWidth = 0;
   private trackHeight = 0;
+  private _cachedSwimlaneGroups: SwimlaneGroup[] = [];
 
   private filterPanel: FilterPanel | null = null;
   private minimap: Minimap | null = null;
@@ -71,7 +72,7 @@ export class TimelineView extends ItemView {
   // Drag state
   private draggedNote: TimelineNote | null = null;
 
-  constructor(leaf: WorkspaceLeaf, settings: ChronosSettings, _app: App) {
+  constructor(leaf: WorkspaceLeaf, settings: ChronosSettings) {
     super(leaf);
     this.settings = settings;
     this.zoom = settings.defaultZoom;
@@ -231,7 +232,9 @@ export class TimelineView extends ItemView {
     // Preview panel (right side)
     if (this.settings.enablePreviewPanel) {
       this.previewPanelWrapper = this.mainAreaEl.createDiv({ cls: "chronos-preview-panel-wrapper" });
-      this.previewPanel = new PreviewPanel(this.previewPanelWrapper);
+      this.previewPanel = new PreviewPanel(this.previewPanelWrapper, () => {
+        this.previewPanelWrapper?.addClass("chronos-hidden");
+      });
       this.addChild(this.previewPanel);
     }
 
@@ -341,6 +344,30 @@ export class TimelineView extends ItemView {
   private applyFiltersAndRender(): void {
     this.filteredNotes = this.allNotes.filter((n) => matchesFilters(n, this.activeFilters));
     this.render();
+    if (this.hasActiveFilters() && this.viewMode === "timeline" && this.filteredNotes.length > 0) {
+      this.scrollToFitNotes();
+    }
+  }
+
+  private hasActiveFilters(): boolean {
+    const f = this.activeFilters;
+    return (
+      f.tags.size > 0 ||
+      f.folders.size > 0 ||
+      f.searchQuery !== "" ||
+      f.dateFrom !== null ||
+      f.dateTo !== null
+    );
+  }
+
+  private scrollToFitNotes(): void {
+    if (!this.scrollWrapper || this.filteredNotes.length === 0) return;
+    const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
+    const times = this.filteredNotes.map((n) => n.date.getTime());
+    const midMs = (Math.min(...times) + Math.max(...times)) / 2;
+    const midDays = (midMs - this.viewStartDate.getTime()) / 86_400_000;
+    const x = midDays * pxPerDay - this.scrollWrapper.clientWidth / 2;
+    this.scrollWrapper.scrollLeft = Math.max(0, x);
   }
 
   // ---------------------------------------------------------------------------
@@ -404,9 +431,11 @@ export class TimelineView extends ItemView {
         this.settings.cardWidth,
         this.settings.maxLanes
       );
+      this._cachedSwimlaneGroups = groups;
       this.trackHeight = groups.reduce((sum, g) => sum + g.height, 0) + 24;
       this.renderSwimlanes(groups, pxPerDay);
     } else {
+      this._cachedSwimlaneGroups = [];
       assignLanes(
         displayNotes,
         this.viewStartDate,
@@ -530,21 +559,14 @@ export class TimelineView extends ItemView {
 
   private buildYOffsetMap(displayNotes: TimelineNote[]): Map<string, number> {
     const map = new Map<string, number>();
-    if (!this.settings.enableSwimlanes) {
+    if (!this.settings.enableSwimlanes || this._cachedSwimlaneGroups.length === 0) {
       for (const note of displayNotes) {
         map.set(note.path + note.date.getTime(), 0);
       }
       return map;
     }
 
-    const groups = buildSwimlaneGroups(
-      displayNotes,
-      this.viewStartDate,
-      this.zoom,
-      this.settings.cardWidth,
-      this.settings.maxLanes
-    );
-    for (const group of groups) {
+    for (const group of this._cachedSwimlaneGroups) {
       for (const note of group.notes) {
         map.set(note.path + note.date.getTime(), group.yOffset + SWIMLANE_HEADER_HEIGHT);
       }
@@ -847,6 +869,10 @@ export class TimelineView extends ItemView {
 
   private jumpToDate(date: Date): void {
     if (!this.scrollWrapper) return;
+    if (date < this.viewStartDate || date > this.viewEndDate) {
+      new Notice("Date is outside the current timeline range.");
+      return;
+    }
     const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
     const offsetDays = (date.getTime() - this.viewStartDate.getTime()) / 86_400_000;
     const x = offsetDays * pxPerDay - this.scrollWrapper.clientWidth / 2;

@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf, Notice } from "obsidian";
-import { ChronosSettings, DEFAULT_SETTINGS, ZOOM_ORDER } from "./types";
+import { ChronosSettings, DEFAULT_SETTINGS } from "./types";
 import { TimelineView, TIMELINE_VIEW_TYPE } from "./views/TimelineView";
 import { ChronosSettingTab } from "./settings";
 
@@ -9,7 +9,7 @@ export default class ChronosPlugin extends Plugin {
   async onload(): Promise<void> {
     await this.loadSettings();
 
-    this.registerView(TIMELINE_VIEW_TYPE, (leaf) => new TimelineView(leaf, this.settings, this.app));
+    this.registerView(TIMELINE_VIEW_TYPE, (leaf) => new TimelineView(leaf, this.settings));
 
     this.addRibbonIcon("calendar-range", "Open Chronos Timeline", () => {
       this.activateView();
