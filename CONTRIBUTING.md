@@ -12,6 +12,19 @@ Thank you for considering contributing! This document explains how to get starte
 
 After any code change, reload Obsidian with **Ctrl+R** (desktop) or reopen the app.
 
+## Testing
+
+The test suite uses [Vitest](https://vitest.dev/) and covers pure utility functions (date parsing, lane assignment, filter logic, recurring date generation, and more).
+
+```bash
+npm test              # run all tests once
+npm run test:watch    # watch mode — re-runs on file changes
+```
+
+Tests live in `src/__tests__/`. A minimal Obsidian API stub is in `src/__mocks__/obsidian.ts`.
+
+When adding a new feature, add tests for any pure logic that doesn't require a running Obsidian instance. You do not need to test DOM manipulation or Obsidian API calls.
+
 ## Pull Request Guidelines
 
 - **One feature / bug fix per PR** — keep changes focused
