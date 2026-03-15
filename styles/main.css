@@ -1,0 +1,418 @@
+/* ============================================================
+   Chronos Timeline — Main Stylesheet
+   Uses Obsidian CSS variables for automatic theme compatibility.
+   ============================================================ */
+
+/* Container */
+.chronos-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+}
+
+/* ============================================================
+   Toolbar
+   ============================================================ */
+.chronos-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.chronos-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chronos-toolbar-center {
+  flex: 1;
+  justify-content: center;
+}
+
+.chronos-toolbar-right {
+  justify-content: flex-end;
+}
+
+.chronos-toolbar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.chronos-zoom-btn,
+.chronos-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chronos-zoom-btn:hover,
+.chronos-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.chronos-zoom-btn.chronos-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.chronos-counter {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 8px;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* ============================================================
+   Main Area (filter panel + timeline)
+   ============================================================ */
+.chronos-main-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ============================================================
+   Filter Panel
+   ============================================================ */
+.chronos-filter-panel-wrapper {
+  width: 220px;
+  min-width: 220px;
+  border-right: 1px solid var(--background-modifier-border);
+  overflow-y: auto;
+  background: var(--background-secondary);
+  flex-shrink: 0;
+}
+
+.chronos-filter-panel-wrapper.chronos-hidden {
+  display: none;
+}
+
+.chronos-filter-panel {
+  padding: 12px;
+}
+
+.chronos-filter-heading {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--text-normal);
+}
+
+.chronos-filter-section {
+  margin-bottom: 16px;
+}
+
+.chronos-filter-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.chronos-filter-input {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.chronos-filter-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.chronos-filter-date-row .chronos-filter-input {
+  flex: 1;
+}
+
+.chronos-filter-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.chronos-filter-check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chronos-filter-check-row input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* ============================================================
+   Scroll Wrapper
+   ============================================================ */
+.chronos-scroll-wrapper {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ============================================================
+   Timeline Axis
+   ============================================================ */
+.chronos-axis {
+  position: relative;
+  height: 48px;
+  min-height: 48px;
+  flex-shrink: 0;
+  background: var(--background-secondary);
+  border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.chronos-axis-marker {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.chronos-axis-marker::before {
+  content: "";
+  display: block;
+  width: 1px;
+  background: var(--background-modifier-border);
+}
+
+.chronos-axis-year::before {
+  height: 48px;
+  background: var(--background-modifier-border);
+}
+
+.chronos-axis-year span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-normal);
+  padding: 2px 4px;
+  white-space: nowrap;
+  background: var(--background-secondary);
+}
+
+.chronos-axis-month::before {
+  height: 32px;
+  background: var(--background-modifier-border-hover);
+}
+
+.chronos-axis-month span {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.chronos-axis-week::before {
+  height: 20px;
+  background: var(--background-modifier-border-focus);
+}
+
+.chronos-axis-week span {
+  font-size: 10px;
+  color: var(--text-faint);
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.chronos-axis-day::before {
+  height: 16px;
+}
+
+.chronos-axis-day span {
+  font-size: 10px;
+  color: var(--text-faint);
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Track (note cards area)
+   ============================================================ */
+.chronos-track {
+  position: relative;
+  flex: 1;
+}
+
+/* Today line */
+.chronos-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--interactive-accent);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.chronos-today-line::before {
+  content: "Today";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 10px;
+  color: var(--interactive-accent);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Note Cards
+   ============================================================ */
+.chronos-note-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 6px 12px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 2;
+  transition: transform 0.1s, box-shadow 0.1s, border-color 0.1s;
+  user-select: none;
+}
+
+.chronos-note-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--interactive-accent);
+  z-index: 10;
+}
+
+.chronos-note-card.chronos-card-selected {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+  z-index: 10;
+}
+
+/* Left color accent bar */
+.chronos-card-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 6px 0 0 6px;
+}
+
+.chronos-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.chronos-card-date {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.chronos-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.chronos-card-tag {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--tag-background);
+  color: var(--tag-color);
+  border: 1px solid var(--tag-border-color);
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
+   Empty State
+   ============================================================ */
+.chronos-empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  max-width: 360px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 24px;
+}
+
+/* ============================================================
+   Dark theme adjustments
+   ============================================================ */
+.theme-dark .chronos-note-card {
+  box-shadow: none;
+}
+
+.theme-dark .chronos-note-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================================
+   Mobile
+   ============================================================ */
+.is-mobile .chronos-toolbar {
+  padding: 6px 8px;
+}
+
+.is-mobile .chronos-filter-panel-wrapper {
+  width: 180px;
+  min-width: 180px;
+}
+
+.is-mobile .chronos-zoom-btn,
+.is-mobile .chronos-btn {
+  padding: 3px 8px;
+  font-size: 12px;
+}

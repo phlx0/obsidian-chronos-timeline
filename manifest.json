@@ -1,0 +1,11 @@
+{
+  "id": "obsidian-chronos-timeline",
+  "name": "Chronos Timeline",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Visualize your notes on an interactive, scrollable timeline. Plots notes by any frontmatter date field — created, published, meeting date, and more.",
+  "author": "Chronos Timeline Contributors",
+  "authorUrl": "https://github.com/your-username/obsidian-chronos-timeline",
+  "fundingUrl": "https://github.com/sponsors/your-username",
+  "isDesktopOnly": false
+}
