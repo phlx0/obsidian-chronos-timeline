@@ -98,13 +98,28 @@ describe("generateRecurringDates", () => {
     expect(dates.some(d => d.getMonth() === 1 && d.getDate() === 1)).toBe(true);
   });
 
-  it("does not exceed MAX_ITER", () => {
+  it("generates all dates in range without an artificial cap", () => {
     const base = new Date("2024-01-01");
     const start = new Date("2020-01-01");
     const end = new Date("2030-01-01");
 
-    // Daily for 10 years — capped at 1000 iterations forward + 1000 backward
+    // Daily for 10 years — should NOT be capped at 1000
     const dates = generateRecurringDates(base, "daily", start, end);
-    expect(dates.length).toBeLessThanOrEqual(2000);
+    // 10 years ≈ 3652 days; minus the base date itself
+    expect(dates.length).toBeGreaterThan(2000);
+  });
+
+  it("daily recurrence over a 4-year range generates ~1461 dates", () => {
+    const base = new Date("2020-01-01");
+    const start = new Date("2020-01-01");
+    const end = new Date("2023-12-31");
+
+    const dates = generateRecurringDates(base, "daily", start, end);
+    // 2020–2023 = 365+365+366+365 = 1461 days total.
+    // base itself is excluded, so forward gives 1460 dates (Jan 2 2020 → Dec 31 2023),
+    // backward gives 0 (base is at the start of the range).
+    expect(dates.length).toBeGreaterThanOrEqual(1460);
+    // Ensure we're not being limited to the old MAX_ITER of 1000
+    expect(dates.length).toBeGreaterThan(1000);
   });
 });

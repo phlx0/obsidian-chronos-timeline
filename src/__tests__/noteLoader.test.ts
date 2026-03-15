@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { assignLanes } from "../utils/noteLoader";
-import { TimelineNote } from "../types";
+import { describe, it, expect, vi } from "vitest";
+import { assignLanes, expandWithRecurring } from "../utils/noteLoader";
+import { TimelineNote, DEFAULT_SETTINGS } from "../types";
 
 function makeNote(dateStr: string, path?: string): TimelineNote {
   return {
@@ -62,5 +62,26 @@ describe("assignLanes", () => {
     ];
     assignLanes(notes, viewStart, "month", 180, 8);
     expect(notes[2].laneIndex).toBe(0);
+  });
+});
+
+describe("expandWithRecurring — empty vault", () => {
+  it("returns empty array without throwing when given zero notes", () => {
+    const app = {
+      vault: { getAbstractFileByPath: vi.fn(() => null) },
+      metadataCache: { getFileCache: vi.fn(() => null) },
+    };
+    const start = new Date("2024-01-01");
+    const end = new Date("2024-12-31");
+    expect(() => {
+      const result = expandWithRecurring(
+        [],
+        app as never,
+        { ...DEFAULT_SETTINGS, enableRecurring: true },
+        start,
+        end
+      );
+      expect(result).toHaveLength(0);
+    }).not.toThrow();
   });
 });
