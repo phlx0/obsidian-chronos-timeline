@@ -18,7 +18,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18.x"
+          node-version: "24.x"
 
       - name: Install dependencies
         run: npm ci
@@ -34,8 +34,4 @@ jobs:
           gh release create "$tag" \
             --title "$tag" \
             --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." \
-            main.js manifest.json styles.css 2>/dev/null || \
-          gh release create "$tag" \
-            --title "$tag" \
-            --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." \
-            main.js manifest.json
+            main.js manifest.json styles.css
