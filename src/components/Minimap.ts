@@ -14,6 +14,7 @@ export class Minimap {
   private totalWidth = 0;
   private lastScrollLeft = 0;
   private lastViewportWidth = 0;
+  private selectedNotePath: string | null = null;
 
   constructor(parent: HTMLElement, onJump: (scrollX: number) => void) {
     this.onJump = onJump;
@@ -76,11 +77,12 @@ export class Minimap {
       const offsetDays = (note.date.getTime() - this.viewStartDate.getTime()) / 86_400_000;
       const noteX = offsetDays * pxPerDay * scale;
       const laneY = h * 0.4 + (note.laneIndex % 4) * 5;
+      const isSelected = note.path === this.selectedNotePath;
 
       ctx.beginPath();
-      ctx.arc(noteX, laneY, 2, 0, Math.PI * 2);
+      ctx.arc(noteX, laneY, isSelected ? 3 : 2, 0, Math.PI * 2);
       ctx.fillStyle = note.color;
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = isSelected ? 1 : 0.8;
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -90,6 +92,13 @@ export class Minimap {
     const vpWidth = Math.max((viewportWidth / this.totalWidth) * w, 16);
     this.vpIndicator.style.left = `${vpLeft}px`;
     this.vpIndicator.style.width = `${vpWidth}px`;
+  }
+
+  setSelectedNote(path: string | null): void {
+    this.selectedNotePath = path;
+    if (this.notes.length > 0) {
+      this.draw(this.lastScrollLeft, this.lastViewportWidth);
+    }
   }
 
   destroy(): void {

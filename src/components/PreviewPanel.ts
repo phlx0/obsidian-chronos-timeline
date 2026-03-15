@@ -35,11 +35,14 @@ export class PreviewPanel extends Component {
 
     this.titleEl.textContent = file.basename;
     this.contentEl.empty();
+    this.contentEl.setText("Loading\u2026");
 
     try {
       const content = await app.vault.cachedRead(file);
+      this.contentEl.empty();
       await MarkdownRenderer.render(app, content, this.contentEl, path, this);
     } catch {
+      this.contentEl.empty();
       this.contentEl.createDiv({ cls: "chronos-preview-empty", text: "Could not render preview." });
     }
   }

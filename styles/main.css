@@ -459,6 +459,9 @@
   padding: 0 10px;
   background: var(--background-secondary);
   border-radius: 0 10px 10px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chronos-swimlane-count {
