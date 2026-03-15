@@ -3,6 +3,11 @@ import { TimelineNote, ZoomLevel, ZOOM_PX_PER_DAY, LANE_HEIGHT_PX, CARD_HEIGHT_P
 const AXIS_H = 48;
 const MAX_CANVAS_W = 4096;
 
+function withAlpha(hex: string, alpha: string): string {
+  // Only append alpha if color is exactly #rrggbb (7 chars)
+  return hex.length === 7 ? hex + alpha : hex;
+}
+
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 /** Draws a rounded rectangle path (does not fill/stroke). */
@@ -47,7 +52,8 @@ export function exportTimelineAsPng(
   const canvas = document.createElement("canvas");
   canvas.width = canvasW;
   canvas.height = canvasH;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
 
   // ── Background ──
   ctx.fillStyle = isDark ? "#1e1e2e" : "#ffffff";
@@ -130,7 +136,7 @@ export function exportTimelineAsPng(
     ctx.fill();
 
     // Accent bar
-    ctx.fillStyle = note.color + (note.isRecurring ? "88" : "");
+    ctx.fillStyle = note.isRecurring ? withAlpha(note.color, "88") : note.color;
     roundRect(ctx, x, y, 4, CARD_HEIGHT_PX, 3);
     ctx.fill();
 

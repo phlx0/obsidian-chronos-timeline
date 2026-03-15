@@ -1,4 +1,4 @@
-import { TimelineNote, CARD_HEIGHT_PX, LANE_HEIGHT_PX, MAX_WORD_COUNT_REF, ZOOM_PX_PER_DAY, ZoomLevel } from "../types";
+import { TimelineNote, CARD_HEIGHT_PX, LANE_HEIGHT_PX, MAX_WORD_COUNT_REF, ZOOM_PX_PER_DAY, ZoomLevel, DOUBLE_CLICK_MS, TOUCH_DEAD_ZONE_PX, TOUCH_LONG_PRESS_MS } from "../types";
 
 export { CARD_HEIGHT_PX, LANE_HEIGHT_PX };
 
@@ -78,7 +78,7 @@ export function createNoteCard(
       clickTimer = setTimeout(() => {
         clickTimer = null;
         onSelect(note, evt);
-      }, 240);
+      }, DOUBLE_CLICK_MS);
     }
   });
 
@@ -94,19 +94,26 @@ export function createNoteCard(
   if (onTouchDrag) {
     let touchStartX = 0;
     let touchMoved = false;
+    let dragActive = false;
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
     card.addEventListener("touchstart", (evt) => {
       if (evt.touches.length !== 1) return;
       touchStartX = evt.touches[0].clientX;
       touchMoved = false;
-      card.classList.add("chronos-dragging");
+      dragActive = false;
+      longPressTimer = setTimeout(() => {
+        dragActive = true;
+        card.classList.add("chronos-dragging");
+      }, TOUCH_LONG_PRESS_MS);
       evt.preventDefault();
     }, { passive: false });
 
     card.addEventListener("touchmove", (evt) => {
       if (evt.touches.length !== 1) return;
+      if (!dragActive) return;
       const deltaX = evt.touches[0].clientX - touchStartX;
-      if (Math.abs(deltaX) > 5) {
+      if (Math.abs(deltaX) > TOUCH_DEAD_ZONE_PX) {
         touchMoved = true;
         card.style.transform = `translateX(${deltaX}px)`;
       }
@@ -114,12 +121,18 @@ export function createNoteCard(
     }, { passive: false });
 
     card.addEventListener("touchend", (evt) => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
       card.classList.remove("chronos-dragging");
       card.style.transform = "";
-      if (touchMoved && evt.changedTouches.length === 1) {
+      if (dragActive && touchMoved && evt.changedTouches.length === 1) {
         const deltaX = evt.changedTouches[0].clientX - touchStartX;
         onTouchDrag(note, deltaX);
       }
+      dragActive = false;
+      touchMoved = false;
     });
   }
 

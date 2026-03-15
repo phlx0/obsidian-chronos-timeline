@@ -68,6 +68,7 @@ export class TimelineView extends ItemView {
   private searchInputEl: HTMLInputElement | null = null;
   private zoomBtns: Map<ZoomLevel, HTMLButtonElement> = new Map();
   private modeBtns: Map<ViewMode, HTMLButtonElement> = new Map();
+  private exportBtn: HTMLButtonElement | null = null;
 
   // Drag state
   private draggedNote: TimelineNote | null = null;
@@ -216,9 +217,13 @@ export class TimelineView extends ItemView {
       this.setViewMode("timeline");
       const nextDay = new Date(date);
       nextDay.setDate(nextDay.getDate() + 1);
-      this.activeFilters.dateFrom = new Date(date);
-      this.activeFilters.dateTo = nextDay;
-      this.filterPanel?.resetFilters();
+      if (this.filterPanel) {
+        this.filterPanel.setDateRange(new Date(date), nextDay);
+        this.activeFilters = this.filterPanel.getFilters();
+      } else {
+        this.activeFilters.dateFrom = new Date(date);
+        this.activeFilters.dateTo = nextDay;
+      }
       this.applyFiltersAndRender();
     });
 
@@ -285,11 +290,12 @@ export class TimelineView extends ItemView {
       placeholder: "Search…",
       cls: "chronos-toolbar-search",
     }) as HTMLInputElement;
-    this.searchInputEl.addEventListener("input", () => {
+    const SEARCH_DEBOUNCE_MS = 150;
+    this.searchInputEl.addEventListener("input", debounce(() => {
       this.activeFilters.searchQuery = this.searchInputEl!.value.trim();
       this.filterPanel?.setSearchQuery(this.activeFilters.searchQuery);
       this.applyFiltersAndRender();
-    });
+    }, SEARCH_DEBOUNCE_MS, true));
 
     // Jump-to-date input
     const jumpInput = searchGroup.createEl("input", {
@@ -322,8 +328,8 @@ export class TimelineView extends ItemView {
         this.activeFilters = createEmptyFilters();
         this.applyFiltersAndRender();
       });
-    rightGroup.createEl("button", { cls: "chronos-btn", text: "Export" })
-      .addEventListener("click", () => this.handleExport());
+    this.exportBtn = rightGroup.createEl("button", { cls: "chronos-btn", text: "Export" }) as HTMLButtonElement;
+    this.exportBtn.addEventListener("click", () => this.handleExport());
   }
 
   // ---------------------------------------------------------------------------
@@ -405,14 +411,28 @@ export class TimelineView extends ItemView {
 
     this.computeDateRange();
 
-    // Expand recurring notes within the visible range
-    const displayNotes = expandWithRecurring(
-      this.filteredNotes,
-      this.app,
-      this.settings,
-      this.viewStartDate,
-      this.viewEndDate
-    );
+    // Expand recurring notes within the visible range (with cache)
+    const cacheStart = this.viewStartDate.getTime();
+    const cacheEnd = this.viewEndDate.getTime();
+    const cacheCount = this.filteredNotes.length;
+    let displayNotes: TimelineNote[];
+    if (
+      this._recurringCache &&
+      this._recurringCache.start === cacheStart &&
+      this._recurringCache.end === cacheEnd &&
+      this._recurringCache.count === cacheCount
+    ) {
+      displayNotes = this._recurringCache.result;
+    } else {
+      displayNotes = expandWithRecurring(
+        this.filteredNotes,
+        this.app,
+        this.settings,
+        this.viewStartDate,
+        this.viewEndDate
+      );
+      this._recurringCache = { start: cacheStart, end: cacheEnd, count: cacheCount, result: displayNotes };
+    }
 
     const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
     const totalDays = Math.ceil(
@@ -488,6 +508,9 @@ export class TimelineView extends ItemView {
   // Scratch storage for the display notes between render and renderVisibleCards calls
   private _displayNotes: TimelineNote[] = [];
 
+  // Cache for expandWithRecurring
+  private _recurringCache: { start: number; end: number; count: number; result: TimelineNote[] } | null = null;
+
   private renderSwimlanes(groups: SwimlaneGroup[], _pxPerDay: number): void {
     for (const group of groups) {
       const bg = this.trackEl!.createDiv({ cls: "chronos-swimlane-bg" });
@@ -498,7 +521,8 @@ export class TimelineView extends ItemView {
       const header = this.trackEl!.createDiv({ cls: "chronos-swimlane-header" });
       header.style.top = `${group.yOffset}px`;
       header.style.width = `${this.totalWidth}px`;
-      header.createSpan({ cls: "chronos-swimlane-label", text: group.label });
+      const labelEl = header.createSpan({ cls: "chronos-swimlane-label", text: group.label });
+      labelEl.title = group.label;
       // Note count badge
       header.createSpan({
         cls: "chronos-swimlane-count",
@@ -681,6 +705,9 @@ export class TimelineView extends ItemView {
     );
     card?.addClass("chronos-card-selected");
 
+    // Minimap highlight
+    this.minimap?.setSelectedNote(note.path);
+
     // Preview panel
     if (this.settings.enablePreviewPanel && this.previewPanel) {
       this.previewPanel.showNote(this.app, note.path);
@@ -737,6 +764,8 @@ export class TimelineView extends ItemView {
       new Notice("No notes to export.");
       return;
     }
+    const btn = this.exportBtn;
+    if (btn) { btn.textContent = "Exporting\u2026"; btn.disabled = true; }
     const isDark = document.body.classList.contains("theme-dark");
     try {
       exportTimelineAsPng(
@@ -751,6 +780,8 @@ export class TimelineView extends ItemView {
       new Notice("Timeline exported as PNG.");
     } catch (e) {
       new Notice(`Export failed: ${(e as Error).message}`);
+    } finally {
+      if (btn) { btn.textContent = "Export"; btn.disabled = false; }
     }
   }
 
@@ -925,6 +956,12 @@ export class TimelineView extends ItemView {
   // ---------------------------------------------------------------------------
 
   private computeDateRange(): void {
+    if (this.filteredNotes.length === 0) {
+      const now = Date.now();
+      this.viewStartDate = new Date(now - 365 * 86_400_000);
+      this.viewEndDate = new Date(now + 365 * 86_400_000);
+      return;
+    }
     const times = this.filteredNotes.map((n) => n.date.getTime());
     const minMs = Math.min(...times);
     const maxMs = Math.max(...times);
