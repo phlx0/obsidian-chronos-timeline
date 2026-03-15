@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Obsidian plugin data (user-specific settings, not for source control)
+data.json
+
 # Build output (bundled by CI, not committed to source)
 main.js
 *.js.map

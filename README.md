@@ -1,58 +1,83 @@
 # Chronos Timeline
 
-**Visualize your Obsidian vault on an interactive, scrollable timeline.**
+[![GitHub release](https://img.shields.io/github/v/release/phlx0/obsidian-chronos-timeline)](https://github.com/phlx0/obsidian-chronos-timeline/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=7c3aed&label=downloads&query=%24%5B%22obsidian-chronos-timeline%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=obsidian-chronos-timeline)
 
-Chronos Timeline is the Obsidian plugin the community has requested for years (41,000+ forum views for this concept). It plots every note on a horizontal time axis based on any frontmatter date field, letting you explore your knowledge base temporally.
+**Visualize your entire Obsidian vault on an interactive, scrollable timeline.**
+
+Stop browsing your notes as a flat list. Chronos Timeline plots every note on a horizontal time axis based on its date, giving you a spatial, temporal view of your knowledge base — how it grew, when ideas clustered, and what happened when.
+
+![Chronos Timeline — timeline view](docs/screenshots/timeline-month.png)
 
 ---
 
 ## Features
 
-- **Interactive timeline** — Scroll horizontally through time, zoom in and out
-- **Four zoom levels** — Year · Month · Week · Day
-- **Smart date detection** — Reads any frontmatter date field (`date`, `created`, `published`, `meeting-date`, or your custom fields). Falls back to file creation time
-- **Automatic lane assignment** — Notes that share the same time slot are stacked into separate rows — no overlap, ever
-- **Filter panel** — Filter by tag, folder, date range, or title search
-- **Color coding** — Color cards by folder or first tag, with per-folder and per-tag hex color overrides
-- **Hover preview** — Native Obsidian link-preview on card hover
-- **Today line** — A highlighted line marks the current date. "Today" button scrolls to it instantly
-- **Theme compatible** — Uses Obsidian CSS variables. Works with every community theme out of the box
-- **Mobile ready** — Responsive layout that works on the Obsidian mobile app
+### Timeline View
+An interactive horizontal timeline you can scroll, zoom, and filter.
+
+- **4 zoom levels** — Year, Month, Week, Day
+- **Smart lane assignment** — Notes that overlap in time stack into separate rows automatically. No overlap, ever
+- **Color coding** — Cards colored by folder or first tag, fully customizable
+- **Today line** — A highlighted line marks today. "Today" button jumps to it instantly
+- **Click to select, double-click to open** — Single click highlights a card and shows a hover preview; double-click opens the note
+
+### Heatmap View
+A GitHub contribution graph for your vault — switch with one click in the toolbar.
+
+![Chronos Timeline — heatmap view](docs/screenshots/heatmap.png)
+
+- One cell per day, colored by note density
+- Covers all years present in your vault
+- Click any day to filter the timeline to that date
+- Intensity legend included
+
+### Swimlanes
+Group notes into horizontal bands by top-level folder — see your Journal, Work, and Research notes on separate tracks simultaneously.
+
+![Chronos Timeline — swimlanes](docs/screenshots/timeline-swimlanes.png)
+
+### Drag to Reschedule
+Drag any note card to a new date on the timeline. The frontmatter date field updates automatically.
+
+### Create Notes from the Timeline
+Double-click any empty area on the timeline to open a "New note" dialog with the clicked date pre-filled.
+
+### Minimap
+A compact overview bar below the timeline shows all notes as colored dots. Click anywhere to jump. The viewport indicator shows exactly where you are in the full timeline.
+
+### Virtualization
+Only note cards in the visible viewport are rendered in the DOM. Works smoothly even with 1,000+ dated notes.
 
 ---
 
 ## Installation
 
-### From the Community Plugin Browser (once published)
+### Community Plugin Browser _(once listed)_
 
-1. Open **Settings → Community plugins → Browse**
+1. **Settings → Community plugins → Browse**
 2. Search for `Chronos Timeline`
-3. Click **Install**, then **Enable**
+3. **Install** → **Enable**
 
-### Manual Installation (development)
+### Manual
 
 ```bash
 cd /path/to/vault/.obsidian/plugins/
 git clone https://github.com/phlx0/obsidian-chronos-timeline
 cd obsidian-chronos-timeline
-npm install
-npm run build
+npm install && npm run build
 ```
 
-Then reload Obsidian and enable the plugin under **Settings → Community plugins**.
+Reload Obsidian and enable the plugin under **Settings → Community plugins**.
 
 ---
 
-## Usage
+## Quick Start
 
-### Opening the Timeline
-
-- Click the **calendar icon** in the left ribbon, or
-- Use the command palette: `Chronos Timeline: Open timeline`
-
-### Date Fields
-
-Add a date to any note's frontmatter:
+1. Open the timeline via the **calendar icon** in the left ribbon, or press the command palette shortcut (`Chronos Timeline: Open timeline`)
+2. Notes with a `date:` field in their frontmatter appear immediately
+3. If you have no dated notes yet, add this to any note's frontmatter:
 
 ```yaml
 ---
@@ -60,7 +85,7 @@ date: 2024-03-15
 ---
 ```
 
-Or use any field name you like — just add it to the **Date Fields** list in settings:
+4. Use any field name — just add it to **Settings → Date fields**:
 
 ```yaml
 ---
@@ -69,103 +94,145 @@ published: 2023-11-01
 ---
 ```
 
+---
+
+## Usage
+
+### Navigating the Timeline
+
+| Action | Result |
+|--------|--------|
+| Scroll horizontally | Move through time |
+| Click a zoom button | Change time scale |
+| Click **Today** | Scroll to current date |
+| Single-click a card | Select and preview |
+| Double-click a card | Open the note |
+| Drag a card | Reschedule (updates frontmatter) |
+| Double-click empty area | Create a new note at that date |
+| Click minimap | Jump to that position |
+
 ### Zoom Levels
 
 | Level | Best for |
 |-------|----------|
 | **Year** | Large vaults — see the big picture across years |
-| **Month** | Daily notes, journals, project notes |
+| **Month** | Daily notes, journals, project timelines |
 | **Week** | Meeting notes, weekly reviews |
-| **Day** | Dense schedules, daily planning |
+| **Day** | Dense schedules and daily planning |
 
-### Keyboard Shortcuts
+### Filtering
 
-You can assign custom hotkeys to the commands:
-- `Chronos Timeline: Open timeline`
-
-Go to **Settings → Hotkeys** and search for `Chronos`.
+Click **Filters** in the toolbar to open the filter panel:
+- Search by title
+- Filter by tag or folder
+- Restrict to a date range
 
 ---
 
 ## Configuration
 
-All settings are available under **Settings → Chronos Timeline**.
+**Settings → Chronos Timeline**
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Frontmatter date fields | Priority-ordered list of frontmatter keys to try | `date, created, published, meeting-date, event-date` |
-| Fall back to file creation date | Use `ctime` if no frontmatter date found | `true` |
-| Default zoom level | Zoom when first opening the view | `month` |
-| Card width | Width of note cards in pixels | `180` |
-| Maximum lane count | Max stacked rows in the timeline | `8` |
-| Show hover preview | Enable Obsidian's native note hover | `true` |
-| Color cards by | `folder`, `tag`, or `none` | `folder` |
-| Tag → color map | Map tag names to hex colors | _(empty)_ |
-| Folder → color map | Map folder paths to hex colors | _(empty)_ |
-| Excluded folders | Folder paths to hide from the timeline | _(empty)_ |
+### Date Detection
 
-### Color Map Format
+| Setting | Default |
+|---------|---------|
+| Frontmatter date fields (priority order) | `date, created, published, meeting-date, event-date` |
+| Fall back to file creation date | `on` |
 
-In the settings text areas, enter one mapping per line:
+### Display
+
+| Setting | Default |
+|---------|---------|
+| Default zoom level | Month |
+| Card width | 180px |
+| Maximum lane count | 8 |
+| Show hover preview | `on` |
+
+### Features
+
+| Setting | Default |
+|---------|---------|
+| Swimlanes (group by folder) | `off` |
+| Minimap | `on` |
+| Drag to reschedule | `on` |
+| Virtualization | `on` |
+
+### Colors
+
+Set `colorBy` to **Folder**, **First tag**, or **None**.
+
+Custom color maps (one per line, `name=#hexcolor`):
 
 ```
 Journal=#4f8ef7
-Work/Projects=#e8a838
+Work=#e8a838
 meeting=#e05c5c
+project=#48b883
+```
+
+### Excluded Folders
+
+List folder paths (one per line) to hide from the timeline entirely:
+
+```
+Templates
+Archive
+.trash
 ```
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Development Setup
+### Development setup
 
 ```bash
 git clone https://github.com/phlx0/obsidian-chronos-timeline
 cd obsidian-chronos-timeline
 npm install
-npm run dev    # watches and rebuilds on save
+npm run dev
 ```
 
-Place or symlink the repository into your vault's `.obsidian/plugins/` directory for live testing.
+Symlink or copy the folder into a test vault's `.obsidian/plugins/` directory. After any change, reload Obsidian with **Ctrl+R**.
 
-### Project Structure
+### Project structure
 
 ```
-obsidian-chronos-timeline/
-├── src/
-│   ├── main.ts              # Plugin entry point, command & view registration
-│   ├── settings.ts          # Settings tab UI
-│   ├── types.ts             # TypeScript interfaces and constants
-│   ├── views/
-│   │   └── TimelineView.ts  # Main ItemView — renders the timeline
-│   ├── components/
-│   │   ├── NoteCard.ts      # Individual note card DOM factory
-│   │   └── FilterPanel.ts   # Filter sidebar component
-│   └── utils/
-│       ├── dateParser.ts    # Frontmatter date extraction and parsing
-│       └── noteLoader.ts    # Vault scanning, color resolution, lane assignment
-├── styles/
-│   └── main.css             # All styling (theme-compatible via CSS variables)
-├── manifest.json
-├── package.json
-├── tsconfig.json
-├── esbuild.config.mjs
-└── versions.json
+src/
+  main.ts                  Plugin entry point, commands, view registration
+  settings.ts              Settings tab UI
+  types.ts                 Shared interfaces and constants
+  views/
+    TimelineView.ts        Main ItemView — timeline + heatmap orchestration
+    HeatmapRenderer.ts     GitHub-style calendar heatmap
+  components/
+    NoteCard.ts            Note card DOM factory
+    FilterPanel.ts         Filter sidebar
+    Minimap.ts             Overview minimap
+    CreateNoteModal.ts     New-note dialog
+  utils/
+    dateParser.ts          Frontmatter date extraction
+    noteLoader.ts          Vault scanning, lane assignment, swimlane grouping
+    frontmatterEditor.ts   Frontmatter date update (drag reschedule)
+styles/
+  main.css                 Source stylesheet (CSS variable based)
+styles.css                 Obsidian-required root copy
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Calendar heatmap view (GitHub contribution graph style)
-- [ ] Circular/year-in-review view
-- [ ] Export timeline as PNG/SVG
-- [ ] Drag notes to change their dates
-- [ ] Dataview integration for custom date queries
-- [ ] Group notes into swimlanes by folder/tag
+- [ ] Keyboard shortcuts (zoom in/out, jump to today)
+- [ ] Dataview integration — use a Dataview query as the note source
+- [ ] Export timeline as PNG
+- [ ] Search bar visible in the toolbar (not behind Filters button)
+- [ ] Note count per swimlane
+- [ ] Color legend overlay
+- [ ] Mobile drag-to-reschedule (touch events)
 
 ---
 

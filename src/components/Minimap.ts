@@ -6,11 +6,14 @@ export class Minimap {
   private ctx: CanvasRenderingContext2D;
   private vpIndicator: HTMLElement;
   private onJump: (scrollX: number) => void;
+  private resizeObserver: ResizeObserver;
 
   private notes: TimelineNote[] = [];
   private viewStartDate: Date = new Date();
   private zoom: ZoomLevel = "month";
   private totalWidth = 0;
+  private lastScrollLeft = 0;
+  private lastViewportWidth = 0;
 
   constructor(parent: HTMLElement, onJump: (scrollX: number) => void) {
     this.onJump = onJump;
@@ -29,6 +32,14 @@ export class Minimap {
       const ratio = (evt.clientX - rect.left) / rect.width;
       this.onJump(ratio * this.totalWidth);
     });
+
+    // Re-draw whenever the container is resized (fixes zero-size on first open)
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.notes.length > 0) {
+        this.draw(this.lastScrollLeft, this.lastViewportWidth);
+      }
+    });
+    this.resizeObserver.observe(this.container);
   }
 
   update(
@@ -43,6 +54,8 @@ export class Minimap {
     this.viewStartDate = viewStartDate;
     this.zoom = zoom;
     this.totalWidth = totalWidth;
+    this.lastScrollLeft = scrollLeft;
+    this.lastViewportWidth = viewportWidth;
     this.draw(scrollLeft, viewportWidth);
   }
 
@@ -62,21 +75,25 @@ export class Minimap {
     for (const note of this.notes) {
       const offsetDays = (note.date.getTime() - this.viewStartDate.getTime()) / 86_400_000;
       const noteX = offsetDays * pxPerDay * scale;
-      const laneY = h * 0.35 + (note.laneIndex % 4) * 5;
+      const laneY = h * 0.4 + (note.laneIndex % 4) * 5;
 
       ctx.beginPath();
       ctx.arc(noteX, laneY, 2, 0, Math.PI * 2);
       ctx.fillStyle = note.color;
-      ctx.globalAlpha = 0.85;
+      ctx.globalAlpha = 0.8;
       ctx.fill();
-      ctx.globalAlpha = 1;
     }
+    ctx.globalAlpha = 1;
 
     // Viewport indicator
     const vpLeft = (scrollLeft / this.totalWidth) * w;
     const vpWidth = Math.max((viewportWidth / this.totalWidth) * w, 16);
     this.vpIndicator.style.left = `${vpLeft}px`;
     this.vpIndicator.style.width = `${vpWidth}px`;
+  }
+
+  destroy(): void {
+    this.resizeObserver.disconnect();
   }
 
   getContainer(): HTMLElement {

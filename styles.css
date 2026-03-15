@@ -614,6 +614,25 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
+/* Heatmap legend */
+.chronos-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 20px;
+  margin-left: 36px;
+}
+
+.chronos-heatmap-legend-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chronos-heatmap-legend-cell {
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 /* ============================================================
    Empty State
    ============================================================ */
