@@ -1,8 +1,25 @@
+# Dependencies
 node_modules/
+package-lock.json
+
+# Build output (bundled by CI, not committed to source)
 main.js
 *.js.map
+
+# OS
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env / secrets
+.env
+.env.*
 
 # Keep these for publishing
 !styles.css
