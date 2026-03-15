@@ -9,12 +9,21 @@ export class PreviewPanel extends Component {
   private titleEl: HTMLElement;
   private contentEl: HTMLElement;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, onClose?: () => void) {
     super();
     this.containerEl = parent.createDiv({ cls: "chronos-preview-panel" });
 
     const header = this.containerEl.createDiv({ cls: "chronos-preview-header" });
     this.titleEl = header.createDiv({ cls: "chronos-preview-title", text: "Preview" });
+
+    if (onClose) {
+      const closeBtn = header.createEl("button", {
+        cls: "chronos-preview-close",
+        title: "Close preview",
+      });
+      closeBtn.textContent = "✕";
+      closeBtn.addEventListener("click", onClose);
+    }
 
     this.contentEl = this.containerEl.createDiv({ cls: "chronos-preview-content markdown-rendered" });
     this.showEmpty();
