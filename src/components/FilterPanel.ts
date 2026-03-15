@@ -1,5 +1,11 @@
 import { TimelineNote, SerializableFilters } from "../types";
 
+export function parseDateInputValue(value: string): Date | null {
+  if (!value) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, m - 1, d); // local midnight, no DST shift
+}
+
 export interface ActiveFilters {
   tags: Set<string>;
   folders: Set<string>;
@@ -139,11 +145,11 @@ export class FilterPanel {
     }
 
     this.fromInput.addEventListener("change", () => {
-      this.filters.dateFrom = this.fromInput!.value ? new Date(this.fromInput!.value) : null;
+      this.filters.dateFrom = parseDateInputValue(this.fromInput!.value);
       this.fireChange();
     });
     this.toInput.addEventListener("change", () => {
-      this.filters.dateTo = this.toInput!.value ? new Date(this.toInput!.value) : null;
+      this.filters.dateTo = parseDateInputValue(this.toInput!.value);
       this.fireChange();
     });
   }
@@ -196,6 +202,19 @@ export class FilterPanel {
   /** Apply a search query externally (from toolbar search input). */
   setSearchQuery(query: string): void {
     this.filters.searchQuery = query;
+    this.fireChange();
+  }
+
+  /** Update only the date range, preserving tags/folders/search. */
+  setDateRange(from: Date | null, to: Date | null): void {
+    this.filters.dateFrom = from;
+    this.filters.dateTo = to;
+    if (this.fromInput) {
+      this.fromInput.value = from ? from.toISOString().split("T")[0] : "";
+    }
+    if (this.toInput) {
+      this.toInput.value = to ? to.toISOString().split("T")[0] : "";
+    }
     this.fireChange();
   }
 

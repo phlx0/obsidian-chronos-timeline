@@ -23,11 +23,8 @@ export function generateRecurringDates(
 
   // Walk forward from baseDate
   let cur = new Date(baseDate);
-  let iterations = 0;
-  const MAX_ITER = 1000;
 
-  while (cur <= rangeEnd && iterations < MAX_ITER) {
-    iterations++;
+  while (cur <= rangeEnd) {
     cur = advance(cur, recurrence);
     if (cur >= rangeStart && cur <= rangeEnd) {
       dates.push(new Date(cur));
@@ -36,9 +33,7 @@ export function generateRecurringDates(
 
   // Walk backward from baseDate
   cur = new Date(baseDate);
-  iterations = 0;
-  while (cur >= rangeStart && iterations < MAX_ITER) {
-    iterations++;
+  while (cur >= rangeStart) {
     cur = retreat(cur, recurrence);
     if (cur >= rangeStart && cur <= rangeEnd) {
       dates.push(new Date(cur));
