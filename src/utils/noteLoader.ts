@@ -5,12 +5,12 @@ import {
   LaneOccupancy,
   ZOOM_PX_PER_DAY,
   ZoomLevel,
-  CARD_HEIGHT_PX,
   LANE_HEIGHT_PX,
   SWIMLANE_HEADER_HEIGHT,
   SwimlaneGroup,
 } from "../types";
 import { extractDate } from "./dateParser";
+import { generateRecurringDates, isValidRecurrence } from "./recurringDates";
 
 const DEFAULT_PALETTE = [
   "#4f8ef7", "#e05c5c", "#48b883", "#e8a838",
@@ -42,8 +42,19 @@ function getTopLevelFolder(folder: string): string {
   return folder.split("/")[0] || "(root)";
 }
 
-export function loadNotes(app: App, settings: ChronosSettings): TimelineNote[] {
-  const files = app.vault.getMarkdownFiles();
+function isValidHex(val: unknown): val is string {
+  return typeof val === "string" && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(val);
+}
+
+export function loadNotes(app: App, settings: ChronosSettings, dvApi?: unknown): TimelineNote[] {
+  // Resolve file list — use Dataview if a query is configured
+  let files: TFile[];
+  if (settings.dataviewQuery && dvApi) {
+    files = resolveFilesFromDv(app, dvApi, settings.dataviewQuery);
+  } else {
+    files = app.vault.getMarkdownFiles();
+  }
+
   const notes: TimelineNote[] = [];
 
   for (const file of files) {
@@ -65,25 +76,97 @@ export function loadNotes(app: App, settings: ChronosSettings): TimelineNote[] {
 
     const folder = file.parent?.path ?? "";
 
+    // Gantt: resolve end date
+    let endDate: Date | undefined;
+    if (settings.enableGantt && settings.ganttEndField) {
+      const rawEnd = cache?.frontmatter?.[settings.ganttEndField];
+      if (rawEnd) {
+        const parsed = new Date(rawEnd);
+        if (!isNaN(parsed.getTime())) endDate = parsed;
+      }
+    }
+
     const note: TimelineNote = {
       path: file.path,
       title: file.basename,
       date: result.date,
+      endDate,
       dateFieldUsed: result.fieldUsed,
       tags: normalizedTags,
       folder,
       topLevelFolder: getTopLevelFolder(folder),
       color: "#4f8ef7",
       laneIndex: 0,
-      // Use file size in bytes / 6 as a fast word-count proxy
       wordCount: Math.round(file.stat.size / 6),
     };
-    note.color = resolveColor(note, settings);
+
+    // Color: per-note override wins over global colorBy
+    const overrideColor = cache?.frontmatter?.["chronos-color"];
+    if (isValidHex(overrideColor)) {
+      note.color = overrideColor;
+    } else {
+      note.color = resolveColor(note, settings);
+    }
+
     notes.push(note);
   }
 
   notes.sort((a, b) => a.date.getTime() - b.date.getTime());
   return notes;
+}
+
+/**
+ * Expands recurring notes into ghost copies within [rangeStart, rangeEnd].
+ * Returns a new array with the originals plus all ghost copies inserted.
+ */
+export function expandWithRecurring(
+  notes: TimelineNote[],
+  app: App,
+  settings: ChronosSettings,
+  rangeStart: Date,
+  rangeEnd: Date
+): TimelineNote[] {
+  if (!settings.enableRecurring) return notes;
+
+  const result: TimelineNote[] = [...notes];
+
+  for (const note of notes) {
+    const cache = app.metadataCache.getFileCache(
+      app.vault.getAbstractFileByPath(note.path) as TFile
+    );
+    const recurrenceVal = cache?.frontmatter?.[settings.recurringField];
+    if (!isValidRecurrence(recurrenceVal)) continue;
+
+    const dates = generateRecurringDates(note.date, recurrenceVal, rangeStart, rangeEnd);
+    for (const d of dates) {
+      result.push({
+        ...note,
+        date: d,
+        isRecurring: true,
+        // Ghost copies don't have endDate spans
+        endDate: undefined,
+      });
+    }
+  }
+
+  result.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return result;
+}
+
+function resolveFilesFromDv(app: App, dvApi: unknown, query: string): TFile[] {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pages = (dvApi as any).pages(query);
+    const files: TFile[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const page of pages.values) {
+      const f = app.vault.getAbstractFileByPath(page.file.path);
+      if (f instanceof TFile) files.push(f);
+    }
+    return files.length > 0 ? files : app.vault.getMarkdownFiles();
+  } catch {
+    return app.vault.getMarkdownFiles();
+  }
 }
 
 function isExcluded(file: TFile, settings: ChronosSettings): boolean {
@@ -98,7 +181,6 @@ function isExcluded(file: TFile, settings: ChronosSettings): boolean {
 
 /**
  * Assigns laneIndex to each note using a greedy sweep-line algorithm.
- * Operates on a flat array — call once per swimlane group when using swimlanes.
  */
 export function assignLanes(
   notes: TimelineNote[],
@@ -108,25 +190,33 @@ export function assignLanes(
   maxLanes: number
 ): void {
   const pxPerDay = ZOOM_PX_PER_DAY[zoom];
-  const effectiveCardWidth = cardWidthPx + 8;
   const laneEndX: LaneOccupancy[] = [];
 
   for (const note of notes) {
     const dayOffset = (note.date.getTime() - viewStartDate.getTime()) / 86_400_000;
     const noteX = dayOffset * pxPerDay;
 
+    // Card width: Gantt cards are wider
+    let effectiveWidth: number;
+    if (note.endDate) {
+      const endDayOffset = (note.endDate.getTime() - viewStartDate.getTime()) / 86_400_000;
+      effectiveWidth = Math.max((endDayOffset - dayOffset) * pxPerDay, cardWidthPx) + 8;
+    } else {
+      effectiveWidth = cardWidthPx + 8;
+    }
+
     let assignedLane = -1;
     for (let i = 0; i < laneEndX.length; i++) {
       if (laneEndX[i].endX <= noteX) {
         assignedLane = i;
-        laneEndX[i].endX = noteX + effectiveCardWidth;
+        laneEndX[i].endX = noteX + effectiveWidth;
         break;
       }
     }
 
     if (assignedLane === -1 && laneEndX.length < maxLanes) {
       assignedLane = laneEndX.length;
-      laneEndX.push({ endX: noteX + effectiveCardWidth });
+      laneEndX.push({ endX: noteX + effectiveWidth });
     }
 
     if (assignedLane === -1) assignedLane = maxLanes - 1;
