@@ -5,7 +5,7 @@ Thank you for considering contributing! This document explains how to get starte
 ## Development Setup
 
 1. Fork this repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/obsidian-chronos-timeline`
+2. Clone your fork: `git clone https://github.com/phlx0/obsidian-chronos-timeline`
 3. Install dependencies: `npm install`
 4. Start the dev watcher: `npm run dev`
 5. Symlink or copy the plugin folder into a test vault's `.obsidian/plugins/` directory

@@ -33,7 +33,7 @@ Chronos Timeline is the Obsidian plugin the community has requested for years (4
 
 ```bash
 cd /path/to/vault/.obsidian/plugins/
-git clone https://github.com/your-username/obsidian-chronos-timeline
+git clone https://github.com/phlx0/obsidian-chronos-timeline
 cd obsidian-chronos-timeline
 npm install
 npm run build
@@ -123,7 +123,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 ### Development Setup
 
 ```bash
-git clone https://github.com/your-username/obsidian-chronos-timeline
+git clone https://github.com/phlx0/obsidian-chronos-timeline
 cd obsidian-chronos-timeline
 npm install
 npm run dev    # watches and rebuilds on save
@@ -171,4 +171,4 @@ obsidian-chronos-timeline/
 
 ## License
 
-MIT © Chronos Timeline Contributors
+MIT © [phlx0](https://github.com/phlx0)
