@@ -1,4 +1,4 @@
-import { TimelineNote } from "../types";
+import { TimelineNote, SerializableFilters } from "../types";
 
 export interface ActiveFilters {
   tags: Set<string>;
@@ -39,22 +39,78 @@ export function matchesFilters(note: TimelineNote, filters: ActiveFilters): bool
   return true;
 }
 
+function serializeFilters(f: ActiveFilters): SerializableFilters {
+  return {
+    tags: [...f.tags],
+    folders: [...f.folders],
+    searchQuery: f.searchQuery,
+    dateFrom: f.dateFrom ? f.dateFrom.toISOString().split("T")[0] : null,
+    dateTo: f.dateTo ? f.dateTo.toISOString().split("T")[0] : null,
+  };
+}
+
+function deserializeFilters(s: SerializableFilters): ActiveFilters {
+  return {
+    tags: new Set(s.tags),
+    folders: new Set(s.folders),
+    searchQuery: s.searchQuery,
+    dateFrom: s.dateFrom ? new Date(s.dateFrom) : null,
+    dateTo: s.dateTo ? new Date(s.dateTo) : null,
+  };
+}
+
 /**
  * Builds the filter panel sidebar DOM.
  * Calls `onChange` whenever any filter changes.
+ * If `persistKey` is given, state is persisted to localStorage.
  */
 export class FilterPanel {
   private container: HTMLElement;
   private filters: ActiveFilters;
   private onChange: (filters: ActiveFilters) => void;
+  private persistKey: string | null;
 
-  constructor(parent: HTMLElement, onChange: (filters: ActiveFilters) => void) {
-    this.filters = createEmptyFilters();
+  // Input refs for reset
+  private searchInput: HTMLInputElement | null = null;
+  private fromInput: HTMLInputElement | null = null;
+  private toInput: HTMLInputElement | null = null;
+
+  constructor(
+    parent: HTMLElement,
+    onChange: (filters: ActiveFilters) => void,
+    persistKey?: string
+  ) {
+    this.persistKey = persistKey ?? null;
+    this.filters = this.loadPersistedFilters() ?? createEmptyFilters();
     this.onChange = onChange;
     this.container = parent.createDiv({ cls: "chronos-filter-panel" });
     this.buildHeader();
-    this.buildSearchBox();
     this.buildDateRange();
+  }
+
+  private loadPersistedFilters(): ActiveFilters | null {
+    if (!this.persistKey) return null;
+    try {
+      const raw = localStorage.getItem(this.persistKey);
+      if (!raw) return null;
+      return deserializeFilters(JSON.parse(raw) as SerializableFilters);
+    } catch {
+      return null;
+    }
+  }
+
+  private persist(): void {
+    if (!this.persistKey) return;
+    try {
+      localStorage.setItem(this.persistKey, JSON.stringify(serializeFilters(this.filters)));
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  private fireChange(): void {
+    this.persist();
+    this.onChange(this.filters);
   }
 
   private buildHeader(): void {
@@ -64,48 +120,38 @@ export class FilterPanel {
     });
   }
 
-  private buildSearchBox(): void {
-    const section = this.container.createDiv({ cls: "chronos-filter-section" });
-    section.createEl("label", { cls: "chronos-filter-label", text: "Search title" });
-    const input = section.createEl("input", {
-      type: "text",
-      placeholder: "Type to filter…",
-      cls: "chronos-filter-input",
-    });
-    input.addEventListener("input", () => {
-      this.filters.searchQuery = input.value.trim();
-      this.onChange(this.filters);
-    });
-  }
-
   private buildDateRange(): void {
     const section = this.container.createDiv({ cls: "chronos-filter-section" });
     section.createEl("label", { cls: "chronos-filter-label", text: "Date range" });
 
     const fromRow = section.createDiv({ cls: "chronos-filter-date-row" });
     fromRow.createSpan({ text: "From" });
-    const fromInput = fromRow.createEl("input", { type: "date", cls: "chronos-filter-input" });
+    this.fromInput = fromRow.createEl("input", { type: "date", cls: "chronos-filter-input" }) as HTMLInputElement;
+    if (this.filters.dateFrom) {
+      this.fromInput.value = this.filters.dateFrom.toISOString().split("T")[0];
+    }
 
     const toRow = section.createDiv({ cls: "chronos-filter-date-row" });
     toRow.createSpan({ text: "To" });
-    const toInput = toRow.createEl("input", { type: "date", cls: "chronos-filter-input" });
+    this.toInput = toRow.createEl("input", { type: "date", cls: "chronos-filter-input" }) as HTMLInputElement;
+    if (this.filters.dateTo) {
+      this.toInput.value = this.filters.dateTo.toISOString().split("T")[0];
+    }
 
-    fromInput.addEventListener("change", () => {
-      this.filters.dateFrom = fromInput.value ? new Date(fromInput.value) : null;
-      this.onChange(this.filters);
+    this.fromInput.addEventListener("change", () => {
+      this.filters.dateFrom = this.fromInput!.value ? new Date(this.fromInput!.value) : null;
+      this.fireChange();
     });
-    toInput.addEventListener("change", () => {
-      this.filters.dateTo = toInput.value ? new Date(toInput.value) : null;
-      this.onChange(this.filters);
+    this.toInput.addEventListener("change", () => {
+      this.filters.dateTo = this.toInput!.value ? new Date(this.toInput!.value) : null;
+      this.fireChange();
     });
   }
 
   /**
    * Re-populates the tag and folder lists based on the current notes.
-   * Called whenever the note set changes.
    */
   rebuildTagsAndFolders(notes: TimelineNote[]): void {
-    // Remove old dynamic sections
     this.container.querySelectorAll(".chronos-filter-dynamic").forEach((el) => el.remove());
 
     const allTags = [...new Set(notes.flatMap((n) => n.tags))].sort();
@@ -115,7 +161,7 @@ export class FilterPanel {
       this.buildCheckboxGroup("Tags", allTags, this.filters.tags, (tag, checked) => {
         if (checked) this.filters.tags.add(tag);
         else this.filters.tags.delete(tag);
-        this.onChange(this.filters);
+        this.fireChange();
       });
     }
 
@@ -123,7 +169,7 @@ export class FilterPanel {
       this.buildCheckboxGroup("Folders", allFolders, this.filters.folders, (folder, checked) => {
         if (checked) this.filters.folders.add(folder);
         else this.filters.folders.delete(folder);
-        this.onChange(this.filters);
+        this.fireChange();
       });
     }
   }
@@ -140,23 +186,31 @@ export class FilterPanel {
     const list = section.createDiv({ cls: "chronos-filter-checklist" });
     for (const item of items) {
       const row = list.createDiv({ cls: "chronos-filter-check-row" });
-      const cb = row.createEl("input", { type: "checkbox" });
+      const cb = row.createEl("input", { type: "checkbox" }) as HTMLInputElement;
       cb.checked = activeSet.has(item);
       cb.addEventListener("change", () => onChange(item, cb.checked));
       row.createSpan({ text: item });
     }
   }
 
+  /** Apply a search query externally (from toolbar search input). */
+  setSearchQuery(query: string): void {
+    this.filters.searchQuery = query;
+    this.fireChange();
+  }
+
+  getFilters(): ActiveFilters {
+    return this.filters;
+  }
+
   resetFilters(): void {
     this.filters = createEmptyFilters();
-    // Clear all inputs
-    this.container.querySelectorAll("input[type=text], input[type=date]").forEach((el) => {
-      (el as HTMLInputElement).value = "";
-    });
+    if (this.fromInput) this.fromInput.value = "";
+    if (this.toInput) this.toInput.value = "";
     this.container.querySelectorAll("input[type=checkbox]").forEach((el) => {
       (el as HTMLInputElement).checked = false;
     });
-    this.onChange(this.filters);
+    this.fireChange();
   }
 
   getContainer(): HTMLElement {
