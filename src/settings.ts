@@ -97,6 +97,26 @@ export class ChronosSettingTab extends PluginSettingTab {
         })
       );
 
+    new Setting(containerEl)
+      .setName("Show relative dates on cards")
+      .setDesc("Display dates as '2 days ago', 'In 3 months', etc. instead of absolute dates.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.showRelativeDates).onChange(async (v) => {
+          this.plugin.settings.showRelativeDates = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Show color legend")
+      .setDesc("Show a color legend overlay in the timeline view.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.showColorLegend).onChange(async (v) => {
+          this.plugin.settings.showColorLegend = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
     // -----------------------------------------------------------------------
     // Features
     // -----------------------------------------------------------------------
@@ -142,6 +162,104 @@ export class ChronosSettingTab extends PluginSettingTab {
         })
       );
 
+    new Setting(containerEl)
+      .setName("Note preview panel")
+      .setDesc("Show a side panel that renders note content when a card is selected.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enablePreviewPanel).onChange(async (v) => {
+          this.plugin.settings.enablePreviewPanel = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Remember filter state")
+      .setDesc("Persist the active filter selections across sessions.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.persistFilters).onChange(async (v) => {
+          this.plugin.settings.persistFilters = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    // -----------------------------------------------------------------------
+    // Gantt mode
+    // -----------------------------------------------------------------------
+    containerEl.createEl("h3", { text: "Gantt Mode" });
+
+    new Setting(containerEl)
+      .setName("Enable Gantt bars")
+      .setDesc("Notes with an end-date field will be rendered as spanning bars.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enableGantt).onChange(async (v) => {
+          this.plugin.settings.enableGantt = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("End date field")
+      .setDesc("Frontmatter field name for the Gantt end date.")
+      .addText((text) =>
+        text
+          .setPlaceholder("end-date")
+          .setValue(this.plugin.settings.ganttEndField)
+          .onChange(async (v) => {
+            this.plugin.settings.ganttEndField = v.trim() || "end-date";
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // -----------------------------------------------------------------------
+    // Recurring events
+    // -----------------------------------------------------------------------
+    containerEl.createEl("h3", { text: "Recurring Events" });
+
+    new Setting(containerEl)
+      .setName("Enable recurring events")
+      .setDesc("Show ghost copies of notes with a recurrence field on the timeline.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.enableRecurring).onChange(async (v) => {
+          this.plugin.settings.enableRecurring = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Recurrence field")
+      .setDesc("Frontmatter field name. Valid values: daily, weekly, biweekly, monthly, yearly.")
+      .addText((text) =>
+        text
+          .setPlaceholder("recurrence")
+          .setValue(this.plugin.settings.recurringField)
+          .onChange(async (v) => {
+            this.plugin.settings.recurringField = v.trim() || "recurrence";
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // -----------------------------------------------------------------------
+    // Dataview integration
+    // -----------------------------------------------------------------------
+    containerEl.createEl("h3", { text: "Dataview Integration" });
+
+    new Setting(containerEl)
+      .setName("Dataview source query")
+      .setDesc(
+        'Use a Dataview source expression to filter which notes appear. E.g. "#journal" or "\"Projects\"". Leave blank to use all vault notes. Requires the Dataview plugin.'
+      )
+      .addTextArea((area) => {
+        area
+          .setPlaceholder('"Journal" OR #meeting')
+          .setValue(this.plugin.settings.dataviewQuery)
+          .onChange(async (val) => {
+            this.plugin.settings.dataviewQuery = val.trim();
+            await this.plugin.saveSettings();
+          });
+        area.inputEl.rows = 3;
+        area.inputEl.cols = 40;
+      });
+
     // -----------------------------------------------------------------------
     // Colors
     // -----------------------------------------------------------------------
@@ -158,6 +276,13 @@ export class ChronosSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Per-note color override")
+      .setDesc('Add a "chronos-color: #hexcode" field to any note\'s frontmatter to override its card color.')
+      .then(() => {
+        // Informational only — no input needed
+      });
 
     containerEl.createEl("h4", { text: "Tag colors" });
     new Setting(containerEl)

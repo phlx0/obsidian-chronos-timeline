@@ -6,20 +6,31 @@ import {
   ViewMode,
   SwimlaneGroup,
   ZOOM_PX_PER_DAY,
+  ZOOM_ORDER,
   DATE_PAD_DAYS,
   LANE_HEIGHT_PX,
   SWIMLANE_HEADER_HEIGHT,
   VIRT_BUFFER_PX,
 } from "../types";
-import { loadNotes, assignLanes, buildSwimlaneGroups } from "../utils/noteLoader";
+import {
+  loadNotes,
+  assignLanes,
+  buildSwimlaneGroups,
+  expandWithRecurring,
+} from "../utils/noteLoader";
 import { updateNoteDate, formatDateForFrontmatter } from "../utils/frontmatterEditor";
 import { createNoteCard } from "../components/NoteCard";
-import { FilterPanel, ActiveFilters, matchesFilters } from "../components/FilterPanel";
+import { FilterPanel, ActiveFilters, matchesFilters, createEmptyFilters } from "../components/FilterPanel";
 import { Minimap } from "../components/Minimap";
 import { HeatmapRenderer } from "./HeatmapRenderer";
 import { CreateNoteModal } from "../components/CreateNoteModal";
+import { PreviewPanel } from "../components/PreviewPanel";
+import { exportTimelineAsPng } from "../utils/exportUtils";
+import { getDataviewApi } from "../utils/dataviewIntegration";
 
 export const TIMELINE_VIEW_TYPE = "chronos-timeline-view";
+
+const FILTER_PERSIST_KEY = "chronos-timeline-filters";
 
 export class TimelineView extends ItemView {
   private settings: ChronosSettings;
@@ -31,23 +42,20 @@ export class TimelineView extends ItemView {
   private viewStartDate: Date = new Date();
   private viewEndDate: Date = new Date();
   private totalWidth = 0;
+  private trackHeight = 0;
 
   private filterPanel: FilterPanel | null = null;
   private minimap: Minimap | null = null;
   private heatmapRenderer: HeatmapRenderer | null = null;
-  private activeFilters: ActiveFilters = {
-    tags: new Set(),
-    folders: new Set(),
-    searchQuery: "",
-    dateFrom: null,
-    dateTo: null,
-  };
+  private previewPanel: PreviewPanel | null = null;
+  private activeFilters: ActiveFilters = createEmptyFilters();
 
   // DOM
   private toolbarEl: HTMLElement | null = null;
   private mainAreaEl: HTMLElement | null = null;
   private filterPanelWrapper: HTMLElement | null = null;
   private contentAreaEl: HTMLElement | null = null;
+  private previewPanelWrapper: HTMLElement | null = null;
   private scrollWrapper: HTMLElement | null = null;
   private axisEl: HTMLElement | null = null;
   private trackEl: HTMLElement | null = null;
@@ -55,13 +63,15 @@ export class TimelineView extends ItemView {
   private heatmapAreaEl: HTMLElement | null = null;
   private loadingOverlay: HTMLElement | null = null;
   private counterEl: HTMLElement | null = null;
+  private legendEl: HTMLElement | null = null;
+  private searchInputEl: HTMLInputElement | null = null;
   private zoomBtns: Map<ZoomLevel, HTMLButtonElement> = new Map();
   private modeBtns: Map<ViewMode, HTMLButtonElement> = new Map();
 
   // Drag state
   private draggedNote: TimelineNote | null = null;
 
-  constructor(leaf: WorkspaceLeaf, settings: ChronosSettings) {
+  constructor(leaf: WorkspaceLeaf, settings: ChronosSettings, _app: App) {
     super(leaf);
     this.settings = settings;
     this.zoom = settings.defaultZoom;
@@ -80,9 +90,49 @@ export class TimelineView extends ItemView {
     this.registerEvent(this.app.vault.on("create", debouncedReload));
     this.registerEvent(this.app.vault.on("delete", debouncedReload));
     this.registerEvent(this.app.metadataCache.on("changed", debouncedReload));
+
+    // Keyboard shortcuts on the container element
+    this.registerDomEvent(this.containerEl, "keydown", (evt: KeyboardEvent) => {
+      if ((evt.target as HTMLElement).tagName === "INPUT") return;
+      switch (evt.key) {
+        case "+":
+        case "=":
+          evt.preventDefault();
+          this.zoomIn();
+          break;
+        case "-":
+          evt.preventDefault();
+          this.zoomOut();
+          break;
+        case "t":
+        case "T":
+          evt.preventDefault();
+          this.jumpToToday();
+          break;
+        case "f":
+        case "F":
+          evt.preventDefault();
+          this.toggleFilterPanel();
+          break;
+        case "h":
+        case "H":
+          evt.preventDefault();
+          this.toggleViewMode();
+          break;
+        case "e":
+        case "E":
+          evt.preventDefault();
+          this.handleExport();
+          break;
+      }
+    });
+
+    // Make container focusable for keyboard events
+    this.containerEl.setAttribute("tabindex", "0");
   }
 
   async onClose(): Promise<void> {
+    this.previewPanel?.unload();
     this.containerEl.empty();
   }
 
@@ -104,12 +154,22 @@ export class TimelineView extends ItemView {
     this.filterPanelWrapper = this.mainAreaEl.createDiv({
       cls: "chronos-filter-panel-wrapper chronos-hidden",
     });
-    this.filterPanel = new FilterPanel(this.filterPanelWrapper, (filters) => {
-      this.activeFilters = filters;
-      this.applyFiltersAndRender();
-    });
+    const persistKey = this.settings.persistFilters ? FILTER_PERSIST_KEY : undefined;
+    this.filterPanel = new FilterPanel(
+      this.filterPanelWrapper,
+      (filters) => {
+        this.activeFilters = filters;
+        this.applyFiltersAndRender();
+      },
+      persistKey
+    );
 
-    // Content area
+    // Restore persisted filters
+    if (this.settings.persistFilters) {
+      this.activeFilters = this.filterPanel.getFilters();
+    }
+
+    // Content area (holds scroll wrapper + heatmap + minimap)
     this.contentAreaEl = this.mainAreaEl.createDiv({ cls: "chronos-content-area" });
 
     // Timeline scroll wrapper
@@ -141,20 +201,21 @@ export class TimelineView extends ItemView {
     });
 
     this.trackEl.addEventListener("click", (evt) => {
-      if ((evt.target as HTMLElement) === this.trackEl ||
-          (evt.target as HTMLElement) === this.cardsLayerEl) {
+      if (
+        (evt.target as HTMLElement) === this.trackEl ||
+        (evt.target as HTMLElement) === this.cardsLayerEl
+      ) {
         this.clearCardSelection();
       }
     });
 
     // Heatmap area (hidden by default)
     this.heatmapAreaEl = this.contentAreaEl.createDiv({ cls: "chronos-heatmap-area chronos-hidden" });
-    this.heatmapRenderer = new HeatmapRenderer(this.heatmapAreaEl, (date, notes) => {
-      // Switch to timeline and scroll to that day
+    this.heatmapRenderer = new HeatmapRenderer(this.heatmapAreaEl, (date) => {
       this.setViewMode("timeline");
-      this.activeFilters.dateFrom = date;
       const nextDay = new Date(date);
       nextDay.setDate(nextDay.getDate() + 1);
+      this.activeFilters.dateFrom = new Date(date);
       this.activeFilters.dateTo = nextDay;
       this.filterPanel?.resetFilters();
       this.applyFiltersAndRender();
@@ -165,6 +226,13 @@ export class TimelineView extends ItemView {
       this.minimap = new Minimap(this.contentAreaEl, (scrollX) => {
         if (this.scrollWrapper) this.scrollWrapper.scrollLeft = scrollX;
       });
+    }
+
+    // Preview panel (right side)
+    if (this.settings.enablePreviewPanel) {
+      this.previewPanelWrapper = this.mainAreaEl.createDiv({ cls: "chronos-preview-panel-wrapper" });
+      this.previewPanel = new PreviewPanel(this.previewPanelWrapper);
+      this.addChild(this.previewPanel);
     }
 
     // Scroll listener for virtualization and minimap
@@ -189,7 +257,7 @@ export class TimelineView extends ItemView {
     // Divider
     toolbar.createDiv({ cls: "chronos-toolbar-divider" });
 
-    // Zoom controls (only relevant for timeline mode)
+    // Zoom controls
     const zoomGroup = toolbar.createDiv({ cls: "chronos-toolbar-group" });
     zoomGroup.createSpan({ cls: "chronos-toolbar-label", text: "Zoom:" });
 
@@ -204,18 +272,55 @@ export class TimelineView extends ItemView {
       this.zoomBtns.set(level, btn);
     });
 
+    // Divider
+    toolbar.createDiv({ cls: "chronos-toolbar-divider" });
+
+    // Search input (always visible in toolbar)
+    const searchGroup = toolbar.createDiv({ cls: "chronos-toolbar-group" });
+    this.searchInputEl = searchGroup.createEl("input", {
+      type: "text",
+      placeholder: "Search…",
+      cls: "chronos-toolbar-search",
+    }) as HTMLInputElement;
+    this.searchInputEl.addEventListener("input", () => {
+      this.activeFilters.searchQuery = this.searchInputEl!.value.trim();
+      this.filterPanel?.setSearchQuery(this.activeFilters.searchQuery);
+      this.applyFiltersAndRender();
+    });
+
+    // Jump-to-date input
+    const jumpInput = searchGroup.createEl("input", {
+      type: "date",
+      cls: "chronos-toolbar-jump",
+      title: "Jump to date",
+    }) as HTMLInputElement;
+    jumpInput.addEventListener("change", () => {
+      if (jumpInput.value) {
+        this.jumpToDate(new Date(jumpInput.value));
+        // Reset value so the same date can be re-selected
+        setTimeout(() => { jumpInput.value = ""; }, 300);
+      }
+    });
+
     // Center: Today + counter
     const centerGroup = toolbar.createDiv({ cls: "chronos-toolbar-group chronos-toolbar-center" });
     centerGroup.createEl("button", { cls: "chronos-btn", text: "Today" })
-      .addEventListener("click", () => this.scrollToToday());
+      .addEventListener("click", () => this.jumpToToday());
     this.counterEl = centerGroup.createDiv({ cls: "chronos-counter" });
 
-    // Right: filter toggle + reset
+    // Right: filter toggle + reset + export
     const rightGroup = toolbar.createDiv({ cls: "chronos-toolbar-group chronos-toolbar-right" });
     rightGroup.createEl("button", { cls: "chronos-btn", text: "Filters" })
       .addEventListener("click", () => this.toggleFilterPanel());
     rightGroup.createEl("button", { cls: "chronos-btn", text: "Reset" })
-      .addEventListener("click", () => this.filterPanel?.resetFilters());
+      .addEventListener("click", () => {
+        this.filterPanel?.resetFilters();
+        if (this.searchInputEl) this.searchInputEl.value = "";
+        this.activeFilters = createEmptyFilters();
+        this.applyFiltersAndRender();
+      });
+    rightGroup.createEl("button", { cls: "chronos-btn", text: "Export" })
+      .addEventListener("click", () => this.handleExport());
   }
 
   // ---------------------------------------------------------------------------
@@ -224,9 +329,9 @@ export class TimelineView extends ItemView {
 
   private loadAndRender(): void {
     this.showLoading();
-    // Defer to next microtask so the spinner renders before the sync work
     setTimeout(() => {
-      this.allNotes = loadNotes(this.app, this.settings);
+      const dvApi = getDataviewApi(this.app);
+      this.allNotes = loadNotes(this.app, this.settings, dvApi ?? undefined);
       this.filterPanel?.rebuildTagsAndFolders(this.allNotes);
       this.applyFiltersAndRender();
       this.hideLoading();
@@ -255,9 +360,12 @@ export class TimelineView extends ItemView {
     if (!this.axisEl || !this.trackEl || !this.cardsLayerEl) return;
 
     this.axisEl.empty();
-    this.trackEl.querySelectorAll(".chronos-swimlane-bg, .chronos-swimlane-header, .chronos-today-line")
+    this.trackEl
+      .querySelectorAll(".chronos-swimlane-bg, .chronos-swimlane-header, .chronos-today-line")
       .forEach((el) => el.remove());
     this.cardsLayerEl.empty();
+    this.legendEl?.remove();
+    this.legendEl = null;
 
     if (this.filteredNotes.length === 0) {
       this.trackEl.createDiv({
@@ -269,6 +377,16 @@ export class TimelineView extends ItemView {
     }
 
     this.computeDateRange();
+
+    // Expand recurring notes within the visible range
+    const displayNotes = expandWithRecurring(
+      this.filteredNotes,
+      this.app,
+      this.settings,
+      this.viewStartDate,
+      this.viewEndDate
+    );
+
     const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
     const totalDays = Math.ceil(
       (this.viewEndDate.getTime() - this.viewStartDate.getTime()) / 86_400_000
@@ -278,34 +396,32 @@ export class TimelineView extends ItemView {
     this.axisEl.style.width = `${this.totalWidth}px`;
     this.renderAxis(pxPerDay);
 
-    let trackHeight: number;
-
     if (this.settings.enableSwimlanes) {
       const groups = buildSwimlaneGroups(
-        this.filteredNotes,
+        displayNotes,
         this.viewStartDate,
         this.zoom,
         this.settings.cardWidth,
         this.settings.maxLanes
       );
-      trackHeight = groups.reduce((sum, g) => sum + g.height, 0) + 24;
+      this.trackHeight = groups.reduce((sum, g) => sum + g.height, 0) + 24;
       this.renderSwimlanes(groups, pxPerDay);
     } else {
       assignLanes(
-        this.filteredNotes,
+        displayNotes,
         this.viewStartDate,
         this.zoom,
         this.settings.cardWidth,
         this.settings.maxLanes
       );
-      const maxLane = Math.max(...this.filteredNotes.map((n) => n.laneIndex), 0);
-      trackHeight = (maxLane + 1) * LANE_HEIGHT_PX + 24;
+      const maxLane = Math.max(...displayNotes.map((n) => n.laneIndex), 0);
+      this.trackHeight = (maxLane + 1) * LANE_HEIGHT_PX + 24;
     }
 
     this.trackEl.style.width = `${this.totalWidth}px`;
-    this.trackEl.style.height = `${trackHeight}px`;
+    this.trackEl.style.height = `${this.trackHeight}px`;
     this.cardsLayerEl.style.width = `${this.totalWidth}px`;
-    this.cardsLayerEl.style.height = `${trackHeight}px`;
+    this.cardsLayerEl.style.height = `${this.trackHeight}px`;
 
     // Today line
     const todayOffDays = (Date.now() - this.viewStartDate.getTime()) / 86_400_000;
@@ -313,16 +429,17 @@ export class TimelineView extends ItemView {
     if (todayX >= 0) {
       const todayLine = this.trackEl.createDiv({ cls: "chronos-today-line" });
       todayLine.style.left = `${todayX}px`;
-      todayLine.style.height = `${trackHeight}px`;
+      todayLine.style.height = `${this.trackHeight}px`;
     }
 
+    // Store display notes for card rendering
+    this._displayNotes = displayNotes;
     this.renderVisibleCards();
     this.updateCounter(this.filteredNotes.length, this.allNotes.length);
 
-    // Minimap
     if (this.minimap && this.scrollWrapper) {
       this.minimap.update(
-        this.filteredNotes,
+        displayNotes,
         this.viewStartDate,
         this.zoom,
         this.totalWidth,
@@ -331,22 +448,33 @@ export class TimelineView extends ItemView {
       );
     }
 
-    this.scrollToToday();
+    // Color legend
+    if (this.settings.showColorLegend) {
+      this.renderColorLegend(displayNotes);
+    }
+
+    this.jumpToToday();
   }
 
-  private renderSwimlanes(groups: SwimlaneGroup[], pxPerDay: number): void {
+  // Scratch storage for the display notes between render and renderVisibleCards calls
+  private _displayNotes: TimelineNote[] = [];
+
+  private renderSwimlanes(groups: SwimlaneGroup[], _pxPerDay: number): void {
     for (const group of groups) {
-      // Background band
       const bg = this.trackEl!.createDiv({ cls: "chronos-swimlane-bg" });
       bg.style.top = `${group.yOffset}px`;
       bg.style.height = `${group.height}px`;
       bg.style.width = `${this.totalWidth}px`;
 
-      // Header label
       const header = this.trackEl!.createDiv({ cls: "chronos-swimlane-header" });
       header.style.top = `${group.yOffset}px`;
       header.style.width = `${this.totalWidth}px`;
       header.createSpan({ cls: "chronos-swimlane-label", text: group.label });
+      // Note count badge
+      header.createSpan({
+        cls: "chronos-swimlane-count",
+        text: `${group.notes.length}`,
+      });
     }
   }
 
@@ -355,8 +483,9 @@ export class TimelineView extends ItemView {
 
     this.cardsLayerEl.empty();
 
+    const displayNotes = this._displayNotes;
     const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
-    const useVirt = this.settings.enableVirtualization && this.filteredNotes.length > 150;
+    const useVirt = this.settings.enableVirtualization && displayNotes.length > 150;
 
     let visStart = 0;
     let visEnd = this.totalWidth;
@@ -366,43 +495,50 @@ export class TimelineView extends ItemView {
       visEnd = this.scrollWrapper.scrollLeft + this.scrollWrapper.clientWidth + VIRT_BUFFER_PX;
     }
 
-    // Determine y-offset per note (swimlane mode offsets by group yOffset)
-    const yOffsetMap = this.buildYOffsetMap();
+    const yOffsetMap = this.buildYOffsetMap(displayNotes);
 
-    for (const note of this.filteredNotes) {
+    for (const note of displayNotes) {
       const offsetDays = (note.date.getTime() - this.viewStartDate.getTime()) / 86_400_000;
       const xPx = offsetDays * pxPerDay;
 
-      if (useVirt && (xPx + this.settings.cardWidth < visStart || xPx > visEnd)) continue;
+      // Gantt: compute actual card width based on endDate
+      let cardW = this.settings.cardWidth;
+      if (note.endDate) {
+        const endOffsetDays = (note.endDate.getTime() - this.viewStartDate.getTime()) / 86_400_000;
+        cardW = Math.max((endOffsetDays - offsetDays) * pxPerDay, this.settings.cardWidth);
+      }
 
-      const yOffset = yOffsetMap.get(note.path) ?? 0;
+      if (useVirt && (xPx + cardW < visStart || xPx > visEnd)) continue;
+
+      const yOffset = yOffsetMap.get(note.path + note.date.getTime()) ?? 0;
 
       const card = createNoteCard(
         note,
         xPx,
         yOffset,
-        this.settings.cardWidth,
+        cardW,
         (n, evt) => this.selectCard(n, evt),
         (n, evt) => this.openNote(n, evt),
         (n, target, evt) => this.showHoverPreview(n, target, evt),
-        (n, evt) => this.onDragStart(n, evt)
+        (n, evt) => this.onDragStart(n, evt),
+        this.settings.showRelativeDates,
+        (n, deltaX) => this.onTouchDrag(n, deltaX)
       );
       this.cardsLayerEl.appendChild(card);
     }
   }
 
-  private buildYOffsetMap(): Map<string, number> {
+  private buildYOffsetMap(displayNotes: TimelineNote[]): Map<string, number> {
     const map = new Map<string, number>();
     if (!this.settings.enableSwimlanes) {
-      for (const note of this.filteredNotes) {
-        map.set(note.path, 0);
+      for (const note of displayNotes) {
+        map.set(note.path + note.date.getTime(), 0);
       }
       return map;
     }
 
-    // Rebuild swimlane groups to get yOffsets
     const groups = buildSwimlaneGroups(
-      this.filteredNotes,
+      displayNotes,
       this.viewStartDate,
       this.zoom,
       this.settings.cardWidth,
@@ -410,10 +546,40 @@ export class TimelineView extends ItemView {
     );
     for (const group of groups) {
       for (const note of group.notes) {
-        map.set(note.path, group.yOffset + SWIMLANE_HEADER_HEIGHT);
+        map.set(note.path + note.date.getTime(), group.yOffset + SWIMLANE_HEADER_HEIGHT);
       }
     }
     return map;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Color Legend
+  // ---------------------------------------------------------------------------
+
+  private renderColorLegend(notes: TimelineNote[]): void {
+    if (!this.scrollWrapper) return;
+
+    // Build unique color → label map
+    const entries = new Map<string, string>();
+    for (const note of notes) {
+      if (note.isRecurring) continue;
+      const key = this.settings.colorBy === "folder" ? note.topLevelFolder
+        : this.settings.colorBy === "tag" ? (note.tags[0] ?? "")
+        : "";
+      if (key && !entries.has(note.color)) {
+        entries.set(note.color, key);
+      }
+    }
+
+    if (entries.size === 0) return;
+
+    this.legendEl = this.scrollWrapper.createDiv({ cls: "chronos-legend" });
+    for (const [color, label] of entries) {
+      const item = this.legendEl.createDiv({ cls: "chronos-legend-item" });
+      const dot = item.createDiv({ cls: "chronos-legend-dot" });
+      dot.style.backgroundColor = color;
+      item.createSpan({ cls: "chronos-legend-label", text: label });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -488,8 +654,15 @@ export class TimelineView extends ItemView {
 
   private selectCard(note: TimelineNote, _evt: MouseEvent): void {
     this.clearCardSelection();
-    const card = this.cardsLayerEl?.querySelector(`[data-path="${CSS.escape(note.path)}"]`);
+    const card = this.cardsLayerEl?.querySelector(
+      `[data-path="${CSS.escape(note.path)}"]`
+    );
     card?.addClass("chronos-card-selected");
+
+    // Preview panel
+    if (this.settings.enablePreviewPanel && this.previewPanel) {
+      this.previewPanel.showNote(this.app, note.path);
+    }
   }
 
   private openNote(note: TimelineNote, evt: MouseEvent): void {
@@ -522,7 +695,6 @@ export class TimelineView extends ItemView {
     if (!this.scrollWrapper) return;
     const scrollLeft = this.scrollWrapper.scrollLeft;
     const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
-    // offsetX relative to the track (which may be wider than the viewport)
     const clickXInTrack = (evt.target as HTMLElement).classList.contains("chronos-cards-layer")
       ? (evt as MouseEvent).offsetX
       : scrollLeft + (evt as MouseEvent).clientX -
@@ -535,10 +707,37 @@ export class TimelineView extends ItemView {
   }
 
   // ---------------------------------------------------------------------------
-  // Drag to reschedule
+  // Export
+  // ---------------------------------------------------------------------------
+
+  private handleExport(): void {
+    if (this.filteredNotes.length === 0) {
+      new Notice("No notes to export.");
+      return;
+    }
+    const isDark = document.body.classList.contains("theme-dark");
+    try {
+      exportTimelineAsPng(
+        this._displayNotes,
+        this.viewStartDate,
+        this.zoom,
+        this.totalWidth,
+        this.trackHeight,
+        this.settings.cardWidth,
+        isDark
+      );
+      new Notice("Timeline exported as PNG.");
+    } catch (e) {
+      new Notice(`Export failed: ${(e as Error).message}`);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Drag to reschedule (mouse)
   // ---------------------------------------------------------------------------
 
   private onDragStart(note: TimelineNote, evt: DragEvent): void {
+    if (note.isRecurring) return; // Can't reschedule ghost copies
     this.draggedNote = note;
     evt.dataTransfer?.setData("text/plain", note.path);
     this.trackEl?.addClass("chronos-drag-over");
@@ -572,9 +771,10 @@ export class TimelineView extends ItemView {
 
       const file = this.app.vault.getAbstractFileByPath(this.draggedNote.path);
       if (file instanceof TFile) {
-        const field = this.draggedNote.dateFieldUsed === "ctime"
-          ? (this.settings.dateFields[0] ?? "date")
-          : this.draggedNote.dateFieldUsed;
+        const field =
+          this.draggedNote.dateFieldUsed === "ctime"
+            ? (this.settings.dateFields[0] ?? "date")
+            : this.draggedNote.dateFieldUsed;
         try {
           await updateNoteDate(this.app, file, field, newDate);
           new Notice(`Rescheduled to ${formatDateForFrontmatter(newDate)}`);
@@ -587,13 +787,35 @@ export class TimelineView extends ItemView {
   }
 
   // ---------------------------------------------------------------------------
+  // Touch drag to reschedule (mobile)
+  // ---------------------------------------------------------------------------
+
+  private onTouchDrag(note: TimelineNote, deltaXPx: number): void {
+    if (note.isRecurring || !this.settings.enableDragReschedule) return;
+    const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
+    const deltaDays = deltaXPx / pxPerDay;
+    const newDate = new Date(note.date.getTime() + deltaDays * 86_400_000);
+
+    const file = this.app.vault.getAbstractFileByPath(note.path);
+    if (file instanceof TFile) {
+      const field =
+        note.dateFieldUsed === "ctime"
+          ? (this.settings.dateFields[0] ?? "date")
+          : note.dateFieldUsed;
+      updateNoteDate(this.app, file, field, newDate)
+        .then(() => new Notice(`Rescheduled to ${formatDateForFrontmatter(newDate)}`))
+        .catch((e: Error) => new Notice(`Failed: ${e.message}`));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Scroll & virtualization
   // ---------------------------------------------------------------------------
 
   private onScroll(): void {
     if (
       this.settings.enableVirtualization &&
-      this.filteredNotes.length > 150 &&
+      this._displayNotes.length > 150 &&
       this.viewMode === "timeline"
     ) {
       this.renderVisibleCards();
@@ -601,7 +823,7 @@ export class TimelineView extends ItemView {
 
     if (this.minimap && this.scrollWrapper) {
       this.minimap.update(
-        this.filteredNotes,
+        this._displayNotes,
         this.viewStartDate,
         this.zoom,
         this.totalWidth,
@@ -611,12 +833,34 @@ export class TimelineView extends ItemView {
     }
   }
 
-  private scrollToToday(): void {
+  // ---------------------------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------------------------
+
+  jumpToToday(): void {
     if (!this.scrollWrapper) return;
     const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
     const offsetDays = (Date.now() - this.viewStartDate.getTime()) / 86_400_000;
     const todayX = offsetDays * pxPerDay - this.scrollWrapper.clientWidth / 2;
     this.scrollWrapper.scrollLeft = Math.max(0, todayX);
+  }
+
+  private jumpToDate(date: Date): void {
+    if (!this.scrollWrapper) return;
+    const pxPerDay = ZOOM_PX_PER_DAY[this.zoom];
+    const offsetDays = (date.getTime() - this.viewStartDate.getTime()) / 86_400_000;
+    const x = offsetDays * pxPerDay - this.scrollWrapper.clientWidth / 2;
+    this.scrollWrapper.scrollLeft = Math.max(0, x);
+  }
+
+  zoomIn(): void {
+    const idx = ZOOM_ORDER.indexOf(this.zoom);
+    if (idx < ZOOM_ORDER.length - 1) this.setZoom(ZOOM_ORDER[idx + 1]);
+  }
+
+  zoomOut(): void {
+    const idx = ZOOM_ORDER.indexOf(this.zoom);
+    if (idx > 0) this.setZoom(ZOOM_ORDER[idx - 1]);
   }
 
   // ---------------------------------------------------------------------------
@@ -637,14 +881,16 @@ export class TimelineView extends ItemView {
     this.scrollWrapper?.toggleClass("chronos-hidden", !isTimeline);
     this.heatmapAreaEl?.toggleClass("chronos-hidden", isTimeline);
     this.minimap?.getContainer().toggleClass("chronos-hidden", !isTimeline);
-
-    // Zoom buttons only relevant for timeline
     this.zoomBtns.forEach((btn) => btn.toggleClass("chronos-btn-disabled", !isTimeline));
 
     this.render();
   }
 
-  private toggleFilterPanel(): void {
+  toggleViewMode(): void {
+    this.setViewMode(this.viewMode === "timeline" ? "heatmap" : "timeline");
+  }
+
+  toggleFilterPanel(): void {
     this.filterPanelWrapper?.classList.toggle("chronos-hidden");
   }
 
@@ -672,9 +918,8 @@ export class TimelineView extends ItemView {
 
   private updateCounter(visible: number, total: number): void {
     if (this.counterEl) {
-      this.counterEl.textContent = visible === total
-        ? `${total} notes`
-        : `${visible} / ${total} notes`;
+      this.counterEl.textContent =
+        visible === total ? `${total} notes` : `${visible} / ${total} notes`;
     }
   }
 
