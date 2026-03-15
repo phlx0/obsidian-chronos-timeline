@@ -18,8 +18,10 @@ An interactive horizontal timeline you can scroll, zoom, and filter.
 - **4 zoom levels** — Year, Month, Week, Day
 - **Smart lane assignment** — Notes that overlap in time stack into separate rows automatically. No overlap, ever
 - **Color coding** — Cards colored by folder or first tag, fully customizable
+- **Per-note color override** — Add `chronos-color: #hexcode` to any note's frontmatter
 - **Today line** — A highlighted line marks today. "Today" button jumps to it instantly
 - **Click to select, double-click to open** — Single click highlights a card and shows a hover preview; double-click opens the note
+- **Color legend** — Optional floating overlay shows which color maps to which folder or tag
 
 ### Heatmap View
 A GitHub contribution graph for your vault — switch with one click in the toolbar.
@@ -29,17 +31,51 @@ A GitHub contribution graph for your vault — switch with one click in the tool
 - Click any day to filter the timeline to that date
 - Intensity legend included
 
+### Gantt Mode
+Notes with an end-date frontmatter field are rendered as horizontal spanning bars, showing their full duration. Perfect for projects, events, and multi-day tasks.
+
+```yaml
+---
+date: 2024-03-01
+end-date: 2024-03-15
+---
+```
+
+### Recurring Events
+Notes with a `recurrence` field automatically generate ghost copies across the visible timeline range.
+
+```yaml
+---
+date: 2024-01-01
+recurrence: weekly   # daily | weekly | biweekly | monthly | yearly
+---
+```
+
 ### Swimlanes
-Group notes into horizontal bands by top-level folder — see your Journal, Work, and Research notes on separate tracks simultaneously.
+Group notes into horizontal bands by top-level folder — see your Journal, Work, and Research notes on separate tracks simultaneously. Each swimlane shows a note count badge.
 
 ### Drag to Reschedule
-Drag any note card to a new date on the timeline. The frontmatter date field updates automatically.
+Drag any note card to a new date on the timeline. The frontmatter date field updates automatically. Touch drag works on mobile too.
+
+### Note Preview Panel
+Click any card to render the full note content in a side panel — links and embeds work correctly via Obsidian's MarkdownRenderer.
 
 ### Create Notes from the Timeline
 Double-click any empty area on the timeline to open a "New note" dialog with the clicked date pre-filled.
 
 ### Minimap
 A compact overview bar below the timeline shows all notes as colored dots. Click anywhere to jump. The viewport indicator shows exactly where you are in the full timeline.
+
+### Dataview Integration
+Use any Dataview source expression to filter which notes appear on the timeline. Requires the [Dataview](https://github.com/blacksmithgu/obsidian-dataview) plugin.
+
+```
+"Projects"
+#meeting OR #event
+```
+
+### Export as PNG
+Click **Export** in the toolbar to download the current timeline as a PNG image — useful for sharing project timelines or weekly reviews.
 
 ### Virtualization
 Only note cards in the visible viewport are rendered in the DOM. Works smoothly even with 1,000+ dated notes.
@@ -98,12 +134,25 @@ published: 2023-11-01
 |--------|--------|
 | Scroll horizontally | Move through time |
 | Click a zoom button | Change time scale |
+| Type in search box | Filter by title instantly |
+| Pick a date in the jump input | Scroll to that date |
 | Click **Today** | Scroll to current date |
-| Single-click a card | Select and preview |
+| Single-click a card | Select and open preview panel |
 | Double-click a card | Open the note |
 | Drag a card | Reschedule (updates frontmatter) |
 | Double-click empty area | Create a new note at that date |
 | Click minimap | Jump to that position |
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `+` / `=` | Zoom in |
+| `-` | Zoom out |
+| `T` | Jump to today |
+| `F` | Toggle filter panel |
+| `H` | Toggle heatmap / timeline |
+| `E` | Export as PNG |
 
 ### Zoom Levels
 
@@ -116,10 +165,11 @@ published: 2023-11-01
 
 ### Filtering
 
-Click **Filters** in the toolbar to open the filter panel:
-- Search by title
+The search bar is always visible in the toolbar. For advanced filters, click **Filters** to open the filter panel:
 - Filter by tag or folder
 - Restrict to a date range
+
+Filter state can be persisted across sessions (Settings → Features → Remember filter state).
 
 ---
 
@@ -142,6 +192,8 @@ Click **Filters** in the toolbar to open the filter panel:
 | Card width | 180px |
 | Maximum lane count | 8 |
 | Show hover preview | `on` |
+| Show relative dates on cards | `off` |
+| Show color legend | `on` |
 
 ### Features
 
@@ -151,6 +203,28 @@ Click **Filters** in the toolbar to open the filter panel:
 | Minimap | `on` |
 | Drag to reschedule | `on` |
 | Virtualization | `on` |
+| Note preview panel | `on` |
+| Remember filter state | `on` |
+
+### Gantt Mode
+
+| Setting | Default |
+|---------|---------|
+| Enable Gantt bars | `off` |
+| End date field | `end-date` |
+
+### Recurring Events
+
+| Setting | Default |
+|---------|---------|
+| Enable recurring events | `off` |
+| Recurrence field | `recurrence` |
+
+### Dataview Integration
+
+| Setting | Default |
+|---------|---------|
+| Dataview source query | _(blank — uses all vault notes)_ |
 
 ### Colors
 
@@ -163,6 +237,12 @@ Journal=#4f8ef7
 Work=#e8a838
 meeting=#e05c5c
 project=#48b883
+```
+
+Per-note override (in frontmatter):
+
+```yaml
+chronos-color: #e05c5c
 ```
 
 ### Excluded Folders
@@ -192,6 +272,13 @@ npm run dev
 
 Symlink or copy the folder into a test vault's `.obsidian/plugins/` directory. After any change, reload Obsidian with **Ctrl+R**.
 
+### Running tests
+
+```bash
+npm test          # run once
+npm run test:watch  # watch mode
+```
+
 ### Project structure
 
 ```
@@ -203,30 +290,24 @@ src/
     TimelineView.ts        Main ItemView — timeline + heatmap orchestration
     HeatmapRenderer.ts     GitHub-style calendar heatmap
   components/
-    NoteCard.ts            Note card DOM factory
-    FilterPanel.ts         Filter sidebar
+    NoteCard.ts            Note card DOM factory (touch drag, relative dates, Gantt)
+    FilterPanel.ts         Filter sidebar (localStorage persistence)
     Minimap.ts             Overview minimap
     CreateNoteModal.ts     New-note dialog
+    PreviewPanel.ts        Side panel — renders note via MarkdownRenderer
   utils/
     dateParser.ts          Frontmatter date extraction
-    noteLoader.ts          Vault scanning, lane assignment, swimlane grouping
+    noteLoader.ts          Vault scanning, lane assignment, Dataview, recurring expansion
     frontmatterEditor.ts   Frontmatter date update (drag reschedule)
+    recurringDates.ts      Recurring event date generation
+    dataviewIntegration.ts Dataview API access helpers
+    exportUtils.ts         Canvas-based PNG export
+  __tests__/               Vitest unit tests (35 tests)
+  __mocks__/               Obsidian API stubs for testing
 styles/
   main.css                 Source stylesheet (CSS variable based)
 styles.css                 Obsidian-required root copy
 ```
-
----
-
-## Roadmap
-
-- [ ] Keyboard shortcuts (zoom in/out, jump to today)
-- [ ] Dataview integration — use a Dataview query as the note source
-- [ ] Export timeline as PNG
-- [ ] Search bar visible in the toolbar (not behind Filters button)
-- [ ] Note count per swimlane
-- [ ] Color legend overlay
-- [ ] Mobile drag-to-reschedule (touch events)
 
 ---
 

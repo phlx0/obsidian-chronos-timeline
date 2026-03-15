@@ -5,6 +5,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.0] — 2026-03-15
+
+### Added
+- **Gantt bars** — Notes with an end-date frontmatter field (configurable, default `end-date`) are rendered as horizontal spanning bars showing their full duration
+- **Recurring events** — Notes with a `recurrence` field (`daily`, `weekly`, `biweekly`, `monthly`, `yearly`) generate ghost copies across the visible timeline range. Ghost cards are rendered with a dashed border
+- **Dataview integration** — Set a Dataview source expression in Settings to filter which notes appear (e.g. `"Projects"` or `#journal`). Requires the Dataview plugin
+- **Per-note color override** — Add `chronos-color: #hexcode` to any note's frontmatter to override its card color independently of the global colorBy setting
+- **Export as PNG** — New Export button in the toolbar renders the current timeline to a canvas and downloads it as a PNG file
+- **Note preview panel** — Optional right-side panel that renders the selected note's full content via Obsidian's MarkdownRenderer (links and embeds work correctly). Toggle in Settings → Features
+- **Search bar in toolbar** — Search input is now always visible in the toolbar instead of being hidden behind the Filters button
+- **Jump-to-date input** — Date picker in the toolbar scrolls the timeline directly to the chosen date
+- **Keyboard shortcuts** — `+`/`-` zoom in/out, `T` jump to today, `F` toggle filter panel, `H` toggle heatmap, `E` export
+- **Note count badge per swimlane** — Each swimlane header now shows the number of notes in that group
+- **Color legend overlay** — Optional floating legend (bottom-right) showing which color corresponds to which folder or tag. Toggle in Settings → Display
+- **Relative date labels** — Cards can optionally show "2 days ago", "In 3 months" etc. instead of absolute dates. Toggle in Settings → Display
+- **Filter state persistence** — Active filter selections are saved to localStorage and restored across sessions. Toggle in Settings → Features
+- **Touch drag to reschedule** — Mobile drag-to-reschedule now works via touch events (touchstart / touchmove / touchend)
+- New commands: `Zoom in`, `Zoom out`, `Toggle heatmap / timeline view`, `Toggle filter panel`
+- New settings sections: Gantt Mode, Recurring Events, Dataview Integration
+- New settings: `showRelativeDates`, `showColorLegend`, `enablePreviewPanel`, `persistFilters`, `enableGantt`, `ganttEndField`, `enableRecurring`, `recurringField`, `dataviewQuery`
+
+### Changed
+- Swimlane header now includes a note count badge next to the folder label
+
+---
+
 ## [1.1.0] — 2026-03-15
 
 ### Added
